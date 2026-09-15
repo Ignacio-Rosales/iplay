@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { addProduct, getProducts, deleteProduct, uploadImage } from '../services/firebase';
+import { addProduct, getProducts, deleteProduct } from '../services/firebase';
+import { uploadImage } from '../services/cloudinary';
 import '../styles/admin.css';
 
 export default function AdminPage() {
@@ -112,18 +113,18 @@ export default function AdminPage() {
       };
 
       await addProduct(newProduct);
-      
+
       // Limpiar formulario
       setFormData({ name: '', price: '', discount: '', description: '', image: '', imageFile: null });
       setImagePreview('');
-      
-      loadProducts();
+
+      await loadProducts();
+      setIsUploading(false);
       alert('Producto agregado exitosamente');
     } catch (error) {
       console.error('Error:', error);
-      alert('Error al agregar el producto');
-    } finally {
       setIsUploading(false);
+      alert('Error al agregar el producto');
     }
   };
 
