@@ -202,6 +202,14 @@
     grid-template-columns: 1fr;
   }
 
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-form {
+    max-width: 100%;
+  }
+
   .header-actions {
     display: flex;
     gap: 10px;
@@ -214,7 +222,8 @@
   position: relative;
 }
 
-#image-input {
+#image-input,
+#logo-input {
   display: none;
 }
 
@@ -236,7 +245,8 @@
   border-color: #34C759;
 }
 
-#image-input:disabled + .file-label {
+#image-input:disabled + .file-label,
+#logo-input:disabled + .file-label {
   opacity: 0.6;
   cursor: not-allowed;
 }
