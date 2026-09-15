@@ -8,7 +8,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/gestion-iplay" element={<AdminPage />} />
       </Routes>
     </Router>
   );

@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { initializeFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -49,5 +49,36 @@ export const deleteProduct = async (productId) => {
     await deleteDoc(doc(db, 'products', productId));
   } catch (error) {
     console.error('Error al eliminar producto:', error);
+  }
+};
+
+// Función para actualizar producto
+export const updateProduct = async (productId, product) => {
+  try {
+    await updateDoc(doc(db, 'products', productId), product);
+  } catch (error) {
+    console.error('Error al actualizar producto:', error);
+    throw error;
+  }
+};
+
+// Función para obtener la configuración de la tienda
+export const getStoreSettings = async () => {
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'store'));
+    return snap.exists() ? snap.data() : null;
+  } catch (error) {
+    console.error('Error al obtener configuración de la tienda:', error);
+    return null;
+  }
+};
+
+// Función para actualizar la configuración de la tienda
+export const updateStoreSettings = async (settings) => {
+  try {
+    await setDoc(doc(db, 'settings', 'store'), settings, { merge: true });
+  } catch (error) {
+    console.error('Error al actualizar configuración de la tienda:', error);
+    throw error;
   }
 };
