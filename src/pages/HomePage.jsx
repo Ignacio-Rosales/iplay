@@ -17,10 +17,9 @@ const getMockProducts = () => [
     name: "Funda de Silicona MagSafe",
     description: "Funda de silicona clara con MagSafe",
     image: 'https://via.placeholder.com/300x300?text=Funda+MagSafe',
-    color: 'Transparente',
     variants: [
-      { model: 'iPhone 15', price: 2499, discount: 10, stock: 8 },
-      { model: 'iPhone 16', price: 2699, discount: 15, stock: 3 }
+      { model: 'iPhone 15', color: 'Transparente', price: 2499, discount: 10, stock: 8 },
+      { model: 'iPhone 16', color: 'Transparente', price: 2699, discount: 15, stock: 3 }
     ]
   },
   {
@@ -28,40 +27,27 @@ const getMockProducts = () => [
     name: "Protector de Pantalla",
     description: "Protector de vidrio templado",
     image: 'https://via.placeholder.com/300x300?text=Screen+Protector',
-    color: 'N/A',
     variants: [
-      { model: 'iPhone 16', price: 899, discount: 0, stock: 0 }
+      { model: 'iPhone 16', color: '', price: 899, discount: 0, stock: 0 }
     ]
   }
 ];
 
-// Cuenta cuántos productos tienen cada color, ordenado alfabéticamente
-const buildColorOptions = (products) => {
-  const counts = new Map();
-  products.forEach(product => {
-    const value = product.color;
-    if (!value) return;
-    counts.set(value, (counts.get(value) || 0) + 1);
-  });
-  return Array.from(counts.entries())
-    .map(([value, count]) => ({ value, count }))
-    .sort((a, b) => a.value.localeCompare(b.value));
-};
-
-// Cuenta cuántos productos DISTINTOS ofrecen cada modelo (una variante repetida
-// dentro del mismo producto no debe contarlo dos veces), ordenado alfabéticamente
-const buildModelOptions = (products) => {
-  const productIdsByModel = new Map();
+// Cuenta cuántos productos DISTINTOS ofrecen cada valor de variante (modelo o color) —
+// una variante repetida dentro del mismo producto no debe contarlo dos veces
+const buildVariantOptionCounts = (products, field) => {
+  const productIdsByValue = new Map();
   products.forEach(product => {
     const seenForThisProduct = new Set();
     (product.variants ?? []).forEach(v => {
-      if (!v.model || seenForThisProduct.has(v.model)) return;
-      seenForThisProduct.add(v.model);
-      if (!productIdsByModel.has(v.model)) productIdsByModel.set(v.model, new Set());
-      productIdsByModel.get(v.model).add(product.id);
+      const value = v[field];
+      if (!value || seenForThisProduct.has(value)) return;
+      seenForThisProduct.add(value);
+      if (!productIdsByValue.has(value)) productIdsByValue.set(value, new Set());
+      productIdsByValue.get(value).add(product.id);
     });
   });
-  return Array.from(productIdsByModel.entries())
+  return Array.from(productIdsByValue.entries())
     .map(([value, idSet]) => ({ value, count: idSet.size }))
     .sort((a, b) => a.value.localeCompare(b.value));
 };
@@ -92,22 +78,24 @@ export default function HomePage() {
     loadSettings();
   }, []);
 
-  const modelOptions = useMemo(() => buildModelOptions(products), [products]);
-  const colorOptions = useMemo(() => buildColorOptions(products), [products]);
+  const modelOptions = useMemo(() => buildVariantOptionCounts(products, 'model'), [products]);
+  const colorOptions = useMemo(() => buildVariantOptionCounts(products, 'color'), [products]);
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
     return products.filter(product => {
       const variantModels = (product.variants ?? []).map(v => v.model);
-      const matchesSearch = !query || [product.name, product.description, ...variantModels]
+      const variantColors = (product.variants ?? []).map(v => v.color);
+      const matchesSearch = !query || [product.name, product.description, ...variantModels, ...variantColors]
         .some(field => field && field.toLowerCase().includes(query));
       const matchesModel = selectedModels.length === 0 || variantModels.some(m => selectedModels.includes(m));
-      const matchesColor = selectedColors.length === 0 || selectedColors.includes(product.color);
+      const matchesColor = selectedColors.length === 0 || variantColors.some(c => selectedColors.includes(c));
       return matchesSearch && matchesModel && matchesColor;
     });
   }, [products, search, selectedModels, selectedColors]);
 
   const preferredModel = selectedModels.length > 0 ? selectedModels[0] : null;
+  const preferredColor = selectedColors.length > 0 ? selectedColors[0] : null;
 
   const toggleModel = (value) => {
     setSelectedModels(prev =>
@@ -132,7 +120,8 @@ export default function HomePage() {
       ? (variant.price * (1 - variant.discount / 100)).toFixed(2)
       : variant.price;
 
-    const mensaje = `¡Hola! Me interesa este producto:\n\n📦 *${product.name}* (${variant.model})\n💰 Precio: $${finalPrice}\n📝 ${product.description}\n\n¿Tienen stock disponible?`;
+    const variantLabel = [variant.color, variant.model].filter(Boolean).join(' - ');
+    const mensaje = `¡Hola! Me interesa este producto:\n\n📦 *${product.name}*${variantLabel ? ` (${variantLabel})` : ''}\n💰 Precio: $${finalPrice}\n📝 ${product.description}\n\n¿Tienen stock disponible?`;
 
     const mensajeEncode = encodeURIComponent(mensaje);
     const urlWhatsApp = `https://wa.me/${settings.whatsappNumber}?text=${mensajeEncode}`;
@@ -156,7 +145,12 @@ export default function HomePage() {
         onClear={clearFilters}
       />
 
-      <ProductList products={filteredProducts} onMakePedido={handleMakePedido} preferredModel={preferredModel} />
+      <ProductList
+        products={filteredProducts}
+        onMakePedido={handleMakePedido}
+        preferredModel={preferredModel}
+        preferredColor={preferredColor}
+      />
     </>
   );
 }

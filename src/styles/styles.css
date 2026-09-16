@@ -211,12 +211,25 @@ header {
   font-weight: 600;
 }
 
-/* SELECTOR DE VARIANTE (MODELO DE TELÉFONO) */
+/* SELECTOR DE VARIANTE (COLOR / MODELO DE TELÉFONO) */
+.variant-picker-group {
+  margin-bottom: 12px;
+}
+
+.variant-picker-label {
+  display: block;
+  font-size: 0.7em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #999;
+  margin-bottom: 4px;
+}
+
 .variant-picker {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 12px;
 }
 
 .variant-pill {

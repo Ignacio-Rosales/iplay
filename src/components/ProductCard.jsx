@@ -1,25 +1,47 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 
-export default function ProductCard({ product, onMakePedido, preferredModel }) {
-  const variants = useMemo(() => product.variants ?? [], [product.variants]);
+const pickVariant = (variants, preferredColor, preferredModel) => {
+  let pool = variants;
+  if (preferredColor) {
+    const byColor = variants.filter(v => v.color === preferredColor);
+    if (byColor.length) pool = byColor;
+  }
+  if (preferredModel) {
+    const match = pool.find(v => v.model === preferredModel);
+    if (match) return match;
+  }
+  return pool[0] ?? null;
+};
 
-  const [selectedVariant, setSelectedVariant] = useState(() => variants[0] ?? null);
+export default function ProductCard({ product, onMakePedido, preferredModel, preferredColor }) {
+  const variants = useMemo(() => product.variants ?? [], [product.variants]);
+  const colors = useMemo(() => [...new Set(variants.map(v => v.color).filter(Boolean))], [variants]);
+
+  const [selectedVariant, setSelectedVariant] = useState(() => pickVariant(variants, preferredColor, preferredModel));
   const userPickedRef = useRef(false);
 
   useEffect(() => {
     if (userPickedRef.current) return;
-    const match = preferredModel && variants.find(v => v.model === preferredModel);
-    setSelectedVariant(match || variants[0] || null);
-  }, [preferredModel, variants]);
-
-  const handleSelectVariant = (variant) => {
-    userPickedRef.current = true;
-    setSelectedVariant(variant);
-  };
+    setSelectedVariant(pickVariant(variants, preferredColor, preferredModel));
+  }, [variants, preferredColor, preferredModel]);
 
   if (!selectedVariant) {
     return null;
   }
+
+  const modelsForSelectedColor = variants.filter(v => v.color === selectedVariant.color);
+
+  const handleSelectColor = (color) => {
+    userPickedRef.current = true;
+    const pool = variants.filter(v => v.color === color);
+    const keepModel = pool.find(v => v.model === selectedVariant.model);
+    setSelectedVariant(keepModel || pool[0]);
+  };
+
+  const handleSelectModel = (variant) => {
+    userPickedRef.current = true;
+    setSelectedVariant(variant);
+  };
 
   const finalPrice = selectedVariant.discount
     ? (selectedVariant.price * (1 - selectedVariant.discount / 100)).toFixed(2)
@@ -30,35 +52,58 @@ export default function ProductCard({ product, onMakePedido, preferredModel }) {
 
   return (
     <div className="product-card">
-      <img src={product.image} alt={product.name} />
+      <img src={selectedVariant.image || product.image} alt={product.name} />
 
       <div className="card-content">
         <h3>{product.name}</h3>
         <p>{product.description}</p>
 
-        {product.color && (
-          <div className="product-tags">
-            <span className="tag">{product.color}</span>
-          </div>
-        )}
-
-        {variants.length > 1 ? (
-          <div className="variant-picker">
-            {variants.map(v => (
-              <button
-                key={v.model}
-                type="button"
-                className={`variant-pill ${v.model === selectedVariant.model ? 'selected' : ''}`}
-                onClick={() => handleSelectVariant(v)}
-              >
-                {v.model}
-              </button>
-            ))}
+        {colors.length > 1 ? (
+          <div className="variant-picker-group">
+            <span className="variant-picker-label">Color</span>
+            <div className="variant-picker">
+              {colors.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`variant-pill ${c === selectedVariant.color ? 'selected' : ''}`}
+                  onClick={() => handleSelectColor(c)}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
-          <div className="product-tags">
-            <span className="tag">{selectedVariant.model}</span>
+          selectedVariant.color && (
+            <div className="product-tags">
+              <span className="tag">{selectedVariant.color}</span>
+            </div>
+          )
+        )}
+
+        {modelsForSelectedColor.length > 1 ? (
+          <div className="variant-picker-group">
+            <span className="variant-picker-label">Modelo</span>
+            <div className="variant-picker">
+              {modelsForSelectedColor.map(v => (
+                <button
+                  key={v.model}
+                  type="button"
+                  className={`variant-pill ${v.model === selectedVariant.model ? 'selected' : ''}`}
+                  onClick={() => handleSelectModel(v)}
+                >
+                  {v.model}
+                </button>
+              ))}
+            </div>
           </div>
+        ) : (
+          selectedVariant.model && (
+            <div className="product-tags">
+              <span className="tag">{selectedVariant.model}</span>
+            </div>
+          )
         )}
 
         <div className="price-section">

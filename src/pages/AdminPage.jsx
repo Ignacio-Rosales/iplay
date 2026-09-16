@@ -12,12 +12,11 @@ import {
 import { uploadImage } from '../services/cloudinary';
 import '../styles/admin.css';
 
-const emptyVariant = { model: '', price: '', discount: '', stock: '' };
+const emptyVariant = { model: '', color: '', price: '', discount: '', stock: '', image: '', imageFile: null, imagePreview: '' };
 
 const emptyProductForm = {
   name: '',
   description: '',
-  color: '',
   image: '',
   imageFile: null,
   variants: [{ ...emptyVariant }]
@@ -70,7 +69,7 @@ export default function AdminPage() {
     [products]
   );
   const colorSuggestions = useMemo(
-    () => [...new Set(products.map(p => p.color).filter(Boolean))],
+    () => [...new Set(products.flatMap(p => (p.variants ?? []).map(v => v.color)).filter(Boolean))],
     [products]
   );
 
@@ -109,7 +108,7 @@ export default function AdminPage() {
       ...prev,
       variants: prev.variants.map((variant, i) => {
         if (i !== index) return variant;
-        const parsed = field === 'model' ? value : (parseFloat(value) || (value === '' ? '' : 0));
+        const parsed = field === 'model' || field === 'color' ? value : (parseFloat(value) || (value === '' ? '' : 0));
         return { ...variant, [field]: parsed };
       })
     }));
@@ -149,6 +148,31 @@ export default function AdminPage() {
     reader.readAsDataURL(file);
   };
 
+  const handleVariantImageChange = (index, e) => {
+    const file = e.target.files[0];
+    if (!file || !validateImageFile(file)) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setFormData(prev => ({
+        ...prev,
+        variants: prev.variants.map((v, i) =>
+          i === index ? { ...v, imageFile: file, imagePreview: event.target.result } : v
+        )
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveVariantImage = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      variants: prev.variants.map((v, i) =>
+        i === index ? { ...v, image: '', imageFile: null, imagePreview: '' } : v
+      )
+    }));
+  };
+
   const resetProductForm = () => {
     setFormData(emptyProductForm);
     setImagePreview('');
@@ -160,20 +184,27 @@ export default function AdminPage() {
     const variants = Array.isArray(product.variants) && product.variants.length > 0
       ? product.variants.map(v => ({
           model: v.model || '',
+          color: v.color || '',
           price: v.price ?? '',
           discount: v.discount ?? '',
-          stock: v.stock ?? ''
+          stock: v.stock ?? '',
+          image: v.image || '',
+          imageFile: null,
+          imagePreview: v.image || ''
         }))
       : [{
           model: product.model || '',
+          color: product.color || '',
           price: product.price ?? '',
           discount: product.discount ?? '',
-          stock: product.stock ?? ''
+          stock: product.stock ?? '',
+          image: '',
+          imageFile: null,
+          imagePreview: ''
         }];
     setFormData({
       name: product.name || '',
       description: product.description || '',
-      color: product.color || '',
       image: product.image || '',
       imageFile: null,
       variants
@@ -190,26 +221,30 @@ export default function AdminPage() {
       return;
     }
 
-    const cleanedVariants = formData.variants
+    const parsedVariants = formData.variants
       .filter(v => v.model.trim() !== '')
       .map(v => ({
         model: v.model.trim(),
+        color: v.color.trim(),
         price: parseFloat(v.price) || 0,
         discount: v.discount === '' ? 0 : parseFloat(v.discount) || 0,
-        stock: v.stock === '' ? 0 : parseFloat(v.stock) || 0
+        stock: v.stock === '' ? 0 : parseFloat(v.stock) || 0,
+        image: v.image || '',
+        imageFile: v.imageFile || null
       }));
 
-    if (cleanedVariants.length === 0) {
+    if (parsedVariants.length === 0) {
       alert('Agrega al menos una variante con modelo y precio');
       return;
     }
-    if (cleanedVariants.some(v => !v.price || v.price <= 0)) {
+    if (parsedVariants.some(v => !v.price || v.price <= 0)) {
       alert('Cada variante necesita un precio válido mayor a 0');
       return;
     }
 
-    if (!editingId && !formData.imageFile) {
-      alert('Por favor selecciona una imagen');
+    const hasAnyImage = formData.imageFile || formData.image || parsedVariants.some(v => v.imageFile || v.image);
+    if (!hasAnyImage) {
+      alert('Agregá al menos una imagen: la del producto o la de alguna variante');
       return;
     }
 
@@ -226,10 +261,30 @@ export default function AdminPage() {
         }
       }
 
+      const cleanedVariants = [];
+      for (const v of parsedVariants) {
+        let variantImage = v.image;
+        if (v.imageFile) {
+          variantImage = await uploadImage(v.imageFile);
+          if (!variantImage) {
+            alert(`Error al subir la imagen de la variante ${v.model}`);
+            setIsUploading(false);
+            return;
+          }
+        }
+        cleanedVariants.push({
+          model: v.model,
+          color: v.color,
+          price: v.price,
+          discount: v.discount,
+          stock: v.stock,
+          image: variantImage
+        });
+      }
+
       const productData = {
         name: formData.name,
         description: formData.description,
-        color: formData.color || '',
         image: imageUrl,
         variants: cleanedVariants
       };
@@ -439,66 +494,87 @@ export default function AdminPage() {
             </div>
 
             <div className="form-group">
-              <label>Color</label>
-              <input
-                type="text"
-                name="color"
-                list="color-suggestions"
-                value={formData.color}
-                onChange={handleInputChange}
-                placeholder="Ej: Negro"
-              />
-              <datalist id="color-suggestions">
-                {colorSuggestions.map(c => <option key={c} value={c} />)}
-              </datalist>
-            </div>
-
-            <div className="form-group">
-              <label>Variantes por modelo *</label>
+              <label>Variantes por modelo y color *</label>
               {formData.variants.map((variant, index) => (
                 <div className="variant-row" key={index}>
-                  <input
-                    type="text"
-                    list="model-suggestions"
-                    value={variant.model}
-                    onChange={(e) => handleVariantChange(index, 'model', e.target.value)}
-                    placeholder="Ej: iPhone 13"
-                  />
-                  <input
-                    type="number"
-                    value={variant.price}
-                    onChange={(e) => handleVariantChange(index, 'price', e.target.value)}
-                    placeholder="Precio"
-                    step="0.01"
-                  />
-                  <input
-                    type="number"
-                    value={variant.discount}
-                    onChange={(e) => handleVariantChange(index, 'discount', e.target.value)}
-                    placeholder="Desc. %"
-                    min="0"
-                    max="100"
-                  />
-                  <input
-                    type="number"
-                    value={variant.stock}
-                    onChange={(e) => handleVariantChange(index, 'stock', e.target.value)}
-                    placeholder="Stock"
-                    min="0"
-                  />
-                  {formData.variants.length > 1 && (
-                    <button
-                      type="button"
-                      className="btn-remove-variant"
-                      onClick={() => removeVariantRow(index)}
-                    >
-                      ✕
-                    </button>
-                  )}
+                  <div className="variant-row-fields">
+                    <input
+                      type="text"
+                      list="model-suggestions"
+                      value={variant.model}
+                      onChange={(e) => handleVariantChange(index, 'model', e.target.value)}
+                      placeholder="Ej: iPhone 13"
+                    />
+                    <input
+                      type="text"
+                      list="color-suggestions"
+                      value={variant.color}
+                      onChange={(e) => handleVariantChange(index, 'color', e.target.value)}
+                      placeholder="Ej: Rosa"
+                    />
+                    <input
+                      type="number"
+                      value={variant.price}
+                      onChange={(e) => handleVariantChange(index, 'price', e.target.value)}
+                      placeholder="Precio"
+                      step="0.01"
+                    />
+                    <input
+                      type="number"
+                      value={variant.discount}
+                      onChange={(e) => handleVariantChange(index, 'discount', e.target.value)}
+                      placeholder="Desc. %"
+                      min="0"
+                      max="100"
+                    />
+                    <input
+                      type="number"
+                      value={variant.stock}
+                      onChange={(e) => handleVariantChange(index, 'stock', e.target.value)}
+                      placeholder="Stock"
+                      min="0"
+                    />
+                    {formData.variants.length > 1 && (
+                      <button
+                        type="button"
+                        className="btn-remove-variant"
+                        onClick={() => removeVariantRow(index)}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <div className="variant-row-image">
+                    <input
+                      type="file"
+                      id={`variant-image-${index}`}
+                      className="variant-image-input"
+                      accept="image/*"
+                      onChange={(e) => handleVariantImageChange(index, e)}
+                    />
+                    <label htmlFor={`variant-image-${index}`} className="file-label-small">
+                      🖼️ Imagen propia (opcional)
+                    </label>
+                    {(variant.imagePreview || variant.image) && (
+                      <div className="variant-image-preview">
+                        <img src={variant.imagePreview || variant.image} alt={variant.model || 'variante'} />
+                        <button
+                          type="button"
+                          className="btn-remove-variant"
+                          onClick={() => handleRemoveVariantImage(index)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
               <datalist id="model-suggestions">
                 {modelSuggestions.map(m => <option key={m} value={m} />)}
+              </datalist>
+              <datalist id="color-suggestions">
+                {colorSuggestions.map(c => <option key={c} value={c} />)}
               </datalist>
               <button type="button" className="btn-add-variant" onClick={addVariantRow}>
                 + Agregar variante
@@ -518,14 +594,13 @@ export default function AdminPage() {
             </div>
 
             <div className="form-group">
-              <label>Imagen del Producto {editingId ? '' : '*'}</label>
+              <label>Imagen del Producto (opcional si cada variante tiene la suya)</label>
               <div className="image-upload">
                 <input
                   type="file"
                   id="image-input"
                   accept="image/*"
                   onChange={handleImageChange}
-                  required={!editingId}
                   disabled={isUploading}
                 />
                 <label htmlFor="image-input" className="file-label">
@@ -570,6 +645,7 @@ export default function AdminPage() {
                       const variants = product.variants ?? [];
                       const prices = variants.map(v => v.price).filter(n => typeof n === 'number');
                       const totalStock = variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+                      const colors = [...new Set(variants.map(v => v.color).filter(Boolean))];
                       const priceLabel = prices.length === 0
                         ? '—'
                         : prices.every(p => p === prices[0])
@@ -579,7 +655,7 @@ export default function AdminPage() {
                         <>
                           <p>{priceLabel} · {variants.length} {variants.length === 1 ? 'variante' : 'variantes'}</p>
                           <p className="product-meta">
-                            {product.color || 'Sin color'} · Stock total: {totalStock}
+                            {colors.length > 0 ? colors.join(', ') : 'Sin color'} · Stock total: {totalStock}
                           </p>
                         </>
                       );

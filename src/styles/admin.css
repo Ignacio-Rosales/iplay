@@ -120,11 +120,58 @@
 }
 
 .variant-row {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.variant-row-fields {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr auto;
+  grid-template-columns: 1.3fr 1fr 0.8fr 0.8fr 0.8fr auto;
   gap: 10px;
   align-items: center;
-  margin-bottom: 10px;
+}
+
+.variant-image-input {
+  display: none;
+}
+
+.file-label-small {
+  display: inline-block;
+  width: auto;
+  padding: 6px 10px;
+  background: #f0f0f0;
+  border: 1px dashed #999;
+  border-radius: 6px;
+  font-size: 0.8em;
+  color: #555;
+  cursor: pointer;
+}
+
+.file-label-small:hover {
+  background: #e8e8e8;
+  border-color: #34C759;
+}
+
+.variant-row-image {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.variant-image-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.variant-image-preview img {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
 }
 
 .btn-add-variant {
@@ -234,7 +281,7 @@
     grid-template-columns: 1fr;
   }
 
-  .variant-row {
+  .variant-row-fields {
     grid-template-columns: 1fr;
   }
 
