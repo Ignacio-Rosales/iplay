@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { initializeFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,6 +17,20 @@ const app = initializeApp(firebaseConfig);
 export const db = initializeFirestore(app, {
   experimentalAutoDetectLongPolling: true,
 });
+
+export const auth = getAuth(app);
+
+// Login "silencioso" del admin: se llama después de validar VITE_ADMIN_PASSWORD
+// contra una cuenta fija de Firebase Auth, para que las reglas de Firestore puedan
+// exigir request.auth != null en las escrituras sin agregar una pantalla de login extra.
+export const loginAdmin = () =>
+  signInWithEmailAndPassword(
+    auth,
+    import.meta.env.VITE_ADMIN_AUTH_EMAIL,
+    import.meta.env.VITE_ADMIN_AUTH_PASSWORD
+  );
+
+export const logoutAdmin = () => signOut(auth);
 
 // Función para agregar producto
 export const addProduct = async (product) => {

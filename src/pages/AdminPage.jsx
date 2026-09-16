@@ -5,7 +5,9 @@ import {
   deleteProduct,
   updateProduct,
   getStoreSettings,
-  updateStoreSettings
+  updateStoreSettings,
+  loginAdmin,
+  logoutAdmin
 } from '../services/firebase';
 import { uploadImage } from '../services/cloudinary';
 import '../styles/admin.css';
@@ -32,6 +34,7 @@ const defaultStoreSettings = {
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [products, setProducts] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -72,14 +75,29 @@ export default function AdminPage() {
     [products]
   );
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (password === import.meta.env.VITE_ADMIN_PASSWORD) {
+    if (password !== import.meta.env.VITE_ADMIN_PASSWORD) {
+      alert('Contraseña incorrecta');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    try {
+      await loginAdmin();
       setIsAuthenticated(true);
       setPassword('');
-    } else {
-      alert('Contraseña incorrecta');
+    } catch (error) {
+      console.error('Error al autenticar con Firebase:', error);
+      alert('No se pudo iniciar sesión. Contactá al administrador.');
+    } finally {
+      setIsLoggingIn(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await logoutAdmin();
+    setIsAuthenticated(false);
   };
 
   const handleInputChange = (e) => {
@@ -273,8 +291,11 @@ export default function AdminPage() {
               placeholder="Ingresa la contraseña"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoggingIn}
             />
-            <button type="submit">Acceder</button>
+            <button type="submit" disabled={isLoggingIn}>
+              {isLoggingIn ? 'Accediendo...' : 'Acceder'}
+            </button>
           </form>
         </div>
       </div>
@@ -285,7 +306,7 @@ export default function AdminPage() {
     <div className="admin-container">
       <div className="admin-header">
         <h1>📦 Gestión de Productos</h1>
-        <button className="logout-btn" onClick={() => setIsAuthenticated(false)}>
+        <button className="logout-btn" onClick={handleLogout}>
           Cerrar sesión
         </button>
       </div>
