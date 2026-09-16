@@ -12,16 +12,15 @@ import {
 import { uploadImage } from '../services/cloudinary';
 import '../styles/admin.css';
 
+const emptyVariant = { model: '', price: '', discount: '', stock: '' };
+
 const emptyProductForm = {
   name: '',
-  price: '',
-  discount: '',
   description: '',
-  model: '',
   color: '',
-  stock: '',
   image: '',
-  imageFile: null
+  imageFile: null,
+  variants: [{ ...emptyVariant }]
 };
 
 const defaultStoreSettings = {
@@ -67,7 +66,7 @@ export default function AdminPage() {
   }
 
   const modelSuggestions = useMemo(
-    () => [...new Set(products.map(p => p.model).filter(Boolean))],
+    () => [...new Set(products.flatMap(p => (p.variants ?? []).map(v => v.model)).filter(Boolean))],
     [products]
   );
   const colorSuggestions = useMemo(
@@ -102,10 +101,29 @@ export default function AdminPage() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleVariantChange = (index, field, value) => {
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'price' || name === 'discount' || name === 'stock' ? parseFloat(value) || '' : value
+      variants: prev.variants.map((variant, i) => {
+        if (i !== index) return variant;
+        const parsed = field === 'model' ? value : (parseFloat(value) || (value === '' ? '' : 0));
+        return { ...variant, [field]: parsed };
+      })
     }));
+  };
+
+  const addVariantRow = () => {
+    setFormData(prev => ({ ...prev, variants: [...prev.variants, { ...emptyVariant }] }));
+  };
+
+  const removeVariantRow = (index) => {
+    setFormData(prev => {
+      if (prev.variants.length <= 1) return prev;
+      return { ...prev, variants: prev.variants.filter((_, i) => i !== index) };
+    });
   };
 
   const validateImageFile = (file) => {
@@ -139,16 +157,26 @@ export default function AdminPage() {
 
   const handleEditProduct = (product) => {
     setEditingId(product.id);
+    const variants = Array.isArray(product.variants) && product.variants.length > 0
+      ? product.variants.map(v => ({
+          model: v.model || '',
+          price: v.price ?? '',
+          discount: v.discount ?? '',
+          stock: v.stock ?? ''
+        }))
+      : [{
+          model: product.model || '',
+          price: product.price ?? '',
+          discount: product.discount ?? '',
+          stock: product.stock ?? ''
+        }];
     setFormData({
       name: product.name || '',
-      price: product.price || '',
-      discount: product.discount || '',
       description: product.description || '',
-      model: product.model || '',
       color: product.color || '',
-      stock: product.stock ?? '',
       image: product.image || '',
-      imageFile: null
+      imageFile: null,
+      variants
     });
     setImagePreview(product.image || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -157,8 +185,26 @@ export default function AdminPage() {
   const handleSubmitProduct = async (e) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.price || !formData.description) {
+    if (!formData.name || !formData.description) {
       alert('Por favor completa los campos requeridos');
+      return;
+    }
+
+    const cleanedVariants = formData.variants
+      .filter(v => v.model.trim() !== '')
+      .map(v => ({
+        model: v.model.trim(),
+        price: parseFloat(v.price) || 0,
+        discount: v.discount === '' ? 0 : parseFloat(v.discount) || 0,
+        stock: v.stock === '' ? 0 : parseFloat(v.stock) || 0
+      }));
+
+    if (cleanedVariants.length === 0) {
+      alert('Agrega al menos una variante con modelo y precio');
+      return;
+    }
+    if (cleanedVariants.some(v => !v.price || v.price <= 0)) {
+      alert('Cada variante necesita un precio válido mayor a 0');
       return;
     }
 
@@ -182,13 +228,10 @@ export default function AdminPage() {
 
       const productData = {
         name: formData.name,
-        price: formData.price,
-        discount: formData.discount || null,
         description: formData.description,
-        model: formData.model || '',
         color: formData.color || '',
-        stock: formData.stock === '' ? 0 : formData.stock,
-        image: imageUrl
+        image: imageUrl,
+        variants: cleanedVariants
       };
 
       if (editingId) {
@@ -395,76 +438,71 @@ export default function AdminPage() {
               />
             </div>
 
-            <div className="form-row">
-              <div className="form-group">
-                <label>Precio *</label>
-                <input
-                  type="number"
-                  name="price"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                  placeholder="2499"
-                  step="0.01"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Descuento (%)</label>
-                <input
-                  type="number"
-                  name="discount"
-                  value={formData.discount}
-                  onChange={handleInputChange}
-                  placeholder="10"
-                  min="0"
-                  max="100"
-                />
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Modelo</label>
-                <input
-                  type="text"
-                  name="model"
-                  list="model-suggestions"
-                  value={formData.model}
-                  onChange={handleInputChange}
-                  placeholder="Ej: iPhone 13"
-                />
-                <datalist id="model-suggestions">
-                  {modelSuggestions.map(m => <option key={m} value={m} />)}
-                </datalist>
-              </div>
-
-              <div className="form-group">
-                <label>Color</label>
-                <input
-                  type="text"
-                  name="color"
-                  list="color-suggestions"
-                  value={formData.color}
-                  onChange={handleInputChange}
-                  placeholder="Ej: Negro"
-                />
-                <datalist id="color-suggestions">
-                  {colorSuggestions.map(c => <option key={c} value={c} />)}
-                </datalist>
-              </div>
+            <div className="form-group">
+              <label>Color</label>
+              <input
+                type="text"
+                name="color"
+                list="color-suggestions"
+                value={formData.color}
+                onChange={handleInputChange}
+                placeholder="Ej: Negro"
+              />
+              <datalist id="color-suggestions">
+                {colorSuggestions.map(c => <option key={c} value={c} />)}
+              </datalist>
             </div>
 
             <div className="form-group">
-              <label>Stock</label>
-              <input
-                type="number"
-                name="stock"
-                value={formData.stock}
-                onChange={handleInputChange}
-                placeholder="10"
-                min="0"
-              />
+              <label>Variantes por modelo *</label>
+              {formData.variants.map((variant, index) => (
+                <div className="variant-row" key={index}>
+                  <input
+                    type="text"
+                    list="model-suggestions"
+                    value={variant.model}
+                    onChange={(e) => handleVariantChange(index, 'model', e.target.value)}
+                    placeholder="Ej: iPhone 13"
+                  />
+                  <input
+                    type="number"
+                    value={variant.price}
+                    onChange={(e) => handleVariantChange(index, 'price', e.target.value)}
+                    placeholder="Precio"
+                    step="0.01"
+                  />
+                  <input
+                    type="number"
+                    value={variant.discount}
+                    onChange={(e) => handleVariantChange(index, 'discount', e.target.value)}
+                    placeholder="Desc. %"
+                    min="0"
+                    max="100"
+                  />
+                  <input
+                    type="number"
+                    value={variant.stock}
+                    onChange={(e) => handleVariantChange(index, 'stock', e.target.value)}
+                    placeholder="Stock"
+                    min="0"
+                  />
+                  {formData.variants.length > 1 && (
+                    <button
+                      type="button"
+                      className="btn-remove-variant"
+                      onClick={() => removeVariantRow(index)}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+              <datalist id="model-suggestions">
+                {modelSuggestions.map(m => <option key={m} value={m} />)}
+              </datalist>
+              <button type="button" className="btn-add-variant" onClick={addVariantRow}>
+                + Agregar variante
+              </button>
             </div>
 
             <div className="form-group">
@@ -528,11 +566,24 @@ export default function AdminPage() {
                   <img src={product.image || 'https://via.placeholder.com/100'} alt={product.name} />
                   <div className="product-info">
                     <h3>{product.name}</h3>
-                    <p>${product.price} {product.discount && `(-${product.discount}%)`}</p>
-                    <p className="product-meta">
-                      {[product.model, product.color].filter(Boolean).join(' · ') || 'Sin modelo/color'}
-                      {' · '}Stock: {product.stock ?? 0}
-                    </p>
+                    {(() => {
+                      const variants = product.variants ?? [];
+                      const prices = variants.map(v => v.price).filter(n => typeof n === 'number');
+                      const totalStock = variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+                      const priceLabel = prices.length === 0
+                        ? '—'
+                        : prices.every(p => p === prices[0])
+                          ? `$${prices[0]}`
+                          : `$${Math.min(...prices)} - $${Math.max(...prices)}`;
+                      return (
+                        <>
+                          <p>{priceLabel} · {variants.length} {variants.length === 1 ? 'variante' : 'variantes'}</p>
+                          <p className="product-meta">
+                            {product.color || 'Sin color'} · Stock total: {totalStock}
+                          </p>
+                        </>
+                      );
+                    })()}
                   </div>
                   <div className="product-item-actions">
                     <button

@@ -1,9 +1,31 @@
-export default function ProductCard({ product, onMakePedido }) {
-  const finalPrice = product.discount
-    ? (product.price * (1 - product.discount / 100)).toFixed(2)
-    : product.price.toFixed(2)
+import { useState, useMemo, useEffect, useRef } from 'react';
 
-  const stock = product.stock ?? 0;
+export default function ProductCard({ product, onMakePedido, preferredModel }) {
+  const variants = useMemo(() => product.variants ?? [], [product.variants]);
+
+  const [selectedVariant, setSelectedVariant] = useState(() => variants[0] ?? null);
+  const userPickedRef = useRef(false);
+
+  useEffect(() => {
+    if (userPickedRef.current) return;
+    const match = preferredModel && variants.find(v => v.model === preferredModel);
+    setSelectedVariant(match || variants[0] || null);
+  }, [preferredModel, variants]);
+
+  const handleSelectVariant = (variant) => {
+    userPickedRef.current = true;
+    setSelectedVariant(variant);
+  };
+
+  if (!selectedVariant) {
+    return null;
+  }
+
+  const finalPrice = selectedVariant.discount
+    ? (selectedVariant.price * (1 - selectedVariant.discount / 100)).toFixed(2)
+    : selectedVariant.price.toFixed(2)
+
+  const stock = selectedVariant.stock ?? 0;
   const inStock = stock > 0;
 
   return (
@@ -14,18 +36,36 @@ export default function ProductCard({ product, onMakePedido }) {
         <h3>{product.name}</h3>
         <p>{product.description}</p>
 
-        {(product.model || product.color) && (
+        {product.color && (
           <div className="product-tags">
-            {product.model && <span className="tag">{product.model}</span>}
-            {product.color && <span className="tag">{product.color}</span>}
+            <span className="tag">{product.color}</span>
+          </div>
+        )}
+
+        {variants.length > 1 ? (
+          <div className="variant-picker">
+            {variants.map(v => (
+              <button
+                key={v.model}
+                type="button"
+                className={`variant-pill ${v.model === selectedVariant.model ? 'selected' : ''}`}
+                onClick={() => handleSelectVariant(v)}
+              >
+                {v.model}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="product-tags">
+            <span className="tag">{selectedVariant.model}</span>
           </div>
         )}
 
         <div className="price-section">
-          {product.discount && (
+          {selectedVariant.discount > 0 && (
             <>
-              <span className="original-price">${product.price}</span>
-              <span className="discount">-{product.discount}%</span>
+              <span className="original-price">${selectedVariant.price}</span>
+              <span className="discount">-{selectedVariant.discount}%</span>
             </>
           )}
           <span className="final-price">${finalPrice}</span>
@@ -41,7 +81,7 @@ export default function ProductCard({ product, onMakePedido }) {
 
         <button
           className="btn-pedido"
-          onClick={() => onMakePedido(product)}
+          onClick={() => onMakePedido(product, selectedVariant)}
         >
           📞 {inStock ? 'Hacer Pedido por WhatsApp' : 'Consultar disponibilidad'}
         </button>

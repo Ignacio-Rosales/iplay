@@ -211,6 +211,30 @@ header {
   font-weight: 600;
 }
 
+/* SELECTOR DE VARIANTE (MODELO DE TELÉFONO) */
+.variant-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.variant-pill {
+  padding: 6px 12px;
+  background: #f0f0f0;
+  color: #555;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  font-size: 0.85em;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.variant-pill.selected {
+  background: linear-gradient(135deg, #34C759 0%, #30B450 100%);
+  color: white;
+}
+
 /* STOCK */
 .stock-info {
   margin-bottom: 12px;

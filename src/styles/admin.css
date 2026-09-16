@@ -119,6 +119,34 @@
   gap: 15px;
 }
 
+.variant-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.btn-add-variant {
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 100%);
+  border: 1px dashed #999;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+.btn-remove-variant {
+  padding: 8px 10px;
+  background: #fff0ef;
+  color: #d1332b;
+  border: 1px solid #ffd1cd;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
 .btn-add {
   padding: 12px;
   background: linear-gradient(135deg, #34C759 0%, #30B450 100%);
@@ -203,6 +231,10 @@
   }
 
   .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .variant-row {
     grid-template-columns: 1fr;
   }
 

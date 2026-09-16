@@ -14,49 +14,55 @@ const DEFAULT_SETTINGS = {
 const getMockProducts = () => [
   {
     id: '1',
-    name: "Funda iPhone 15 MagSafe",
-    price: 2499,
-    discount: 10,
-    description: "Funda de silicona clara con MagSafe para iPhone 15 Plus",
-    image: 'https://via.placeholder.com/300x300?text=iPhone+15+Case',
-    model: 'iPhone 15',
+    name: "Funda de Silicona MagSafe",
+    description: "Funda de silicona clara con MagSafe",
+    image: 'https://via.placeholder.com/300x300?text=Funda+MagSafe',
     color: 'Transparente',
-    stock: 8
+    variants: [
+      { model: 'iPhone 15', price: 2499, discount: 10, stock: 8 },
+      { model: 'iPhone 16', price: 2699, discount: 15, stock: 3 }
+    ]
   },
   {
     id: '2',
-    name: "Funda iPhone 16 MagSafe",
-    price: 2699,
-    discount: 15,
-    description: "Funda de silicona clara con MagSafe para iPhone 16",
-    image: 'https://via.placeholder.com/300x300?text=iPhone+16+Case',
-    model: 'iPhone 16',
-    color: 'Transparente',
-    stock: 3
-  },
-  {
-    id: '3',
     name: "Protector de Pantalla",
-    price: 899,
-    discount: null,
-    description: "Protector de vidrio templado para iPhone 16",
+    description: "Protector de vidrio templado",
     image: 'https://via.placeholder.com/300x300?text=Screen+Protector',
-    model: 'iPhone 16',
     color: 'N/A',
-    stock: 0
+    variants: [
+      { model: 'iPhone 16', price: 899, discount: 0, stock: 0 }
+    ]
   }
 ];
 
-// Cuenta cuántos productos tienen cada valor de `field`, ordenado alfabéticamente
-const buildOptionsWithCounts = (products, field) => {
+// Cuenta cuántos productos tienen cada color, ordenado alfabéticamente
+const buildColorOptions = (products) => {
   const counts = new Map();
   products.forEach(product => {
-    const value = product[field];
+    const value = product.color;
     if (!value) return;
     counts.set(value, (counts.get(value) || 0) + 1);
   });
   return Array.from(counts.entries())
     .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => a.value.localeCompare(b.value));
+};
+
+// Cuenta cuántos productos DISTINTOS ofrecen cada modelo (una variante repetida
+// dentro del mismo producto no debe contarlo dos veces), ordenado alfabéticamente
+const buildModelOptions = (products) => {
+  const productIdsByModel = new Map();
+  products.forEach(product => {
+    const seenForThisProduct = new Set();
+    (product.variants ?? []).forEach(v => {
+      if (!v.model || seenForThisProduct.has(v.model)) return;
+      seenForThisProduct.add(v.model);
+      if (!productIdsByModel.has(v.model)) productIdsByModel.set(v.model, new Set());
+      productIdsByModel.get(v.model).add(product.id);
+    });
+  });
+  return Array.from(productIdsByModel.entries())
+    .map(([value, idSet]) => ({ value, count: idSet.size }))
     .sort((a, b) => a.value.localeCompare(b.value));
 };
 
@@ -86,19 +92,22 @@ export default function HomePage() {
     loadSettings();
   }, []);
 
-  const modelOptions = useMemo(() => buildOptionsWithCounts(products, 'model'), [products]);
-  const colorOptions = useMemo(() => buildOptionsWithCounts(products, 'color'), [products]);
+  const modelOptions = useMemo(() => buildModelOptions(products), [products]);
+  const colorOptions = useMemo(() => buildColorOptions(products), [products]);
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
     return products.filter(product => {
-      const matchesSearch = !query || [product.name, product.model, product.description]
+      const variantModels = (product.variants ?? []).map(v => v.model);
+      const matchesSearch = !query || [product.name, product.description, ...variantModels]
         .some(field => field && field.toLowerCase().includes(query));
-      const matchesModel = selectedModels.length === 0 || selectedModels.includes(product.model);
+      const matchesModel = selectedModels.length === 0 || variantModels.some(m => selectedModels.includes(m));
       const matchesColor = selectedColors.length === 0 || selectedColors.includes(product.color);
       return matchesSearch && matchesModel && matchesColor;
     });
   }, [products, search, selectedModels, selectedColors]);
+
+  const preferredModel = selectedModels.length > 0 ? selectedModels[0] : null;
 
   const toggleModel = (value) => {
     setSelectedModels(prev =>
@@ -118,12 +127,12 @@ export default function HomePage() {
     setSelectedColors([]);
   };
 
-  const handleMakePedido = (product) => {
-    const finalPrice = product.discount
-      ? (product.price * (1 - product.discount / 100)).toFixed(2)
-      : product.price;
+  const handleMakePedido = (product, variant) => {
+    const finalPrice = variant.discount
+      ? (variant.price * (1 - variant.discount / 100)).toFixed(2)
+      : variant.price;
 
-    const mensaje = `¡Hola! Me interesa este producto:\n\n📦 *${product.name}*\n💰 Precio: $${finalPrice}\n📝 ${product.description}\n\n¿Tienen stock disponible?`;
+    const mensaje = `¡Hola! Me interesa este producto:\n\n📦 *${product.name}* (${variant.model})\n💰 Precio: $${finalPrice}\n📝 ${product.description}\n\n¿Tienen stock disponible?`;
 
     const mensajeEncode = encodeURIComponent(mensaje);
     const urlWhatsApp = `https://wa.me/${settings.whatsappNumber}?text=${mensajeEncode}`;
@@ -147,7 +156,7 @@ export default function HomePage() {
         onClear={clearFilters}
       />
 
-      <ProductList products={filteredProducts} onMakePedido={handleMakePedido} />
+      <ProductList products={filteredProducts} onMakePedido={handleMakePedido} preferredModel={preferredModel} />
     </>
   );
 }
