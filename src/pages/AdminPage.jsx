@@ -22,6 +22,16 @@ const emptyProductForm = {
   variants: [{ ...emptyVariant }]
 };
 
+// Evita que "iPhone 13", "iphone 13" e "IPHONE 13" queden como filtros
+// distintos: si el valor ya existe entre los cargados (sin importar mayúsculas),
+// reutiliza esa misma grafía; si es nuevo, la define para las próximas cargas.
+const normalizeAgainstKnown = (value, knownValues) => {
+  const trimmed = value.trim().replace(/\s+/g, ' ');
+  if (!trimmed) return trimmed;
+  const existing = knownValues.find(v => v.toLowerCase() === trimmed.toLowerCase());
+  return existing || trimmed;
+};
+
 const defaultStoreSettings = {
   title: '',
   tagline: '',
@@ -221,17 +231,39 @@ export default function AdminPage() {
       return;
     }
 
+    // Se normaliza contra los valores de OTROS productos, no contra el propio:
+    // si comparáramos contra el propio, al editar un producto para corregir su
+    // grafía ("Iphone 13" -> "iPhone 13") la comparación encontraría el valor
+    // viejo de ese mismo producto (todavía en `products`) y revertiría el cambio.
+    const otherProducts = products.filter(p => p.id !== editingId);
+    // Listas "vivas": arrancan con los valores de otros productos y se van completando
+    // a medida que se procesa cada variante del formulario actual, para que dos
+    // variantes nuevas del mismo producto ("iPhone 13" y "iphone 13") también
+    // converjan a la misma grafía entre sí, no solo contra productos ya guardados.
+    const knownModels = [...new Set(otherProducts.flatMap(p => (p.variants ?? []).map(v => v.model)).filter(Boolean))];
+    const knownColors = [...new Set(otherProducts.flatMap(p => (p.variants ?? []).map(v => v.color)).filter(Boolean))];
+
     const parsedVariants = formData.variants
       .filter(v => v.model.trim() !== '')
-      .map(v => ({
-        model: v.model.trim(),
-        color: v.color.trim(),
-        price: parseFloat(v.price) || 0,
-        discount: v.discount === '' ? 0 : parseFloat(v.discount) || 0,
-        stock: v.stock === '' ? 0 : parseFloat(v.stock) || 0,
-        image: v.image || '',
-        imageFile: v.imageFile || null
-      }));
+      .map(v => {
+        const model = normalizeAgainstKnown(v.model, knownModels);
+        if (model && !knownModels.some(m => m.toLowerCase() === model.toLowerCase())) {
+          knownModels.push(model);
+        }
+        const color = normalizeAgainstKnown(v.color, knownColors);
+        if (color && !knownColors.some(c => c.toLowerCase() === color.toLowerCase())) {
+          knownColors.push(color);
+        }
+        return {
+          model,
+          color,
+          price: parseFloat(v.price) || 0,
+          discount: v.discount === '' ? 0 : parseFloat(v.discount) || 0,
+          stock: v.stock === '' ? 0 : parseFloat(v.stock) || 0,
+          image: v.image || '',
+          imageFile: v.imageFile || null
+        };
+      });
 
     if (parsedVariants.length === 0) {
       alert('Agrega al menos una variante con modelo y precio');

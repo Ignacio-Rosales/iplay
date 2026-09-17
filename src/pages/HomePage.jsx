@@ -33,22 +33,31 @@ const getMockProducts = () => [
   }
 ];
 
+// Clave insensible a mayúsculas para agrupar variantes: cubre productos guardados
+// antes de normalizarse en el admin (p. ej. "iPhone 13" y "iphone 13" sueltos en
+// Firestore), que si no se agruparían como dos filtros distintos en el index.
+const normalizedKey = (value) => value.trim().toLowerCase();
+
 // Cuenta cuántos productos DISTINTOS ofrecen cada valor de variante (modelo o color) —
 // una variante repetida dentro del mismo producto no debe contarlo dos veces
 const buildVariantOptionCounts = (products, field) => {
-  const productIdsByValue = new Map();
+  const productIdsByKey = new Map();
+  const displayValueByKey = new Map();
   products.forEach(product => {
     const seenForThisProduct = new Set();
     (product.variants ?? []).forEach(v => {
       const value = v[field];
-      if (!value || seenForThisProduct.has(value)) return;
-      seenForThisProduct.add(value);
-      if (!productIdsByValue.has(value)) productIdsByValue.set(value, new Set());
-      productIdsByValue.get(value).add(product.id);
+      if (!value) return;
+      const key = normalizedKey(value);
+      if (seenForThisProduct.has(key)) return;
+      seenForThisProduct.add(key);
+      if (!displayValueByKey.has(key)) displayValueByKey.set(key, value);
+      if (!productIdsByKey.has(key)) productIdsByKey.set(key, new Set());
+      productIdsByKey.get(key).add(product.id);
     });
   });
-  return Array.from(productIdsByValue.entries())
-    .map(([value, idSet]) => ({ value, count: idSet.size }))
+  return Array.from(productIdsByKey.entries())
+    .map(([key, idSet]) => ({ value: displayValueByKey.get(key), count: idSet.size }))
     .sort((a, b) => a.value.localeCompare(b.value));
 };
 
@@ -83,13 +92,17 @@ export default function HomePage() {
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const selectedModelKeys = selectedModels.map(normalizedKey);
+    const selectedColorKeys = selectedColors.map(normalizedKey);
     return products.filter(product => {
       const variantModels = (product.variants ?? []).map(v => v.model);
       const variantColors = (product.variants ?? []).map(v => v.color);
       const matchesSearch = !query || [product.name, product.description, ...variantModels, ...variantColors]
         .some(field => field && field.toLowerCase().includes(query));
-      const matchesModel = selectedModels.length === 0 || variantModels.some(m => selectedModels.includes(m));
-      const matchesColor = selectedColors.length === 0 || variantColors.some(c => selectedColors.includes(c));
+      const matchesModel = selectedModelKeys.length === 0
+        || variantModels.some(m => m && selectedModelKeys.includes(normalizedKey(m)));
+      const matchesColor = selectedColorKeys.length === 0
+        || variantColors.some(c => c && selectedColorKeys.includes(normalizedKey(c)));
       return matchesSearch && matchesModel && matchesColor;
     });
   }, [products, search, selectedModels, selectedColors]);
