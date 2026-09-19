@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useCart } from '../context/useCart';
 
 const pickVariant = (variants, preferredColor, preferredModel) => {
   let pool = variants;
@@ -13,7 +14,8 @@ const pickVariant = (variants, preferredColor, preferredModel) => {
   return pool[0] ?? null;
 };
 
-export default function ProductCard({ product, onMakePedido, preferredModel, preferredColor }) {
+export default function ProductCard({ product, preferredModel, preferredColor }) {
+  const { addItem } = useCart();
   const variants = useMemo(() => product.variants ?? [], [product.variants]);
   const colors = useMemo(() => [...new Set(variants.map(v => v.color).filter(Boolean))], [variants]);
 
@@ -38,6 +40,13 @@ export default function ProductCard({ product, onMakePedido, preferredModel, pre
     setSelectedVariant(keepModel || pool[0]);
   };
 
+  const handleStepColor = (step) => {
+    if (colors.length < 2) return;
+    const currentIndex = colors.indexOf(selectedVariant.color);
+    const nextIndex = (currentIndex + step + colors.length) % colors.length;
+    handleSelectColor(colors[nextIndex]);
+  };
+
   const handleSelectModel = (variant) => {
     userPickedRef.current = true;
     setSelectedVariant(variant);
@@ -52,7 +61,35 @@ export default function ProductCard({ product, onMakePedido, preferredModel, pre
 
   return (
     <div className="product-card">
-      <img src={selectedVariant.image || product.image} alt={product.name} />
+      <div className="product-image-wrapper">
+        <img src={selectedVariant.image || product.image} alt={product.name} />
+
+        {colors.length > 1 && (
+          <>
+            <button
+              type="button"
+              className="image-nav-arrow prev"
+              onClick={() => handleStepColor(-1)}
+              aria-label="Color anterior"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="image-nav-arrow next"
+              onClick={() => handleStepColor(1)}
+              aria-label="Siguiente color"
+            >
+              ›
+            </button>
+            <div className="image-nav-dots">
+              {colors.map(c => (
+                <span key={c} className={`image-nav-dot ${c === selectedVariant.color ? 'active' : ''}`} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       <div className="card-content">
         <h3>{product.name}</h3>
@@ -126,9 +163,9 @@ export default function ProductCard({ product, onMakePedido, preferredModel, pre
 
         <button
           className="btn-pedido"
-          onClick={() => onMakePedido(product, selectedVariant)}
+          onClick={() => addItem(product, selectedVariant)}
         >
-          📞 {inStock ? 'Hacer Pedido por WhatsApp' : 'Consultar disponibilidad'}
+          🛒 {inStock ? 'Agregar al carrito' : 'Agregar (consultar disponibilidad)'}
         </button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import ProductCard from './ProductCard';
 
-export default function ProductList({ products, onMakePedido, preferredModel, preferredColor }) {
+export default function ProductList({ products, preferredModel, preferredColor }) {
   if (products.length === 0) {
     return <p className="no-results">No se encontraron productos con esos filtros.</p>;
   }
@@ -11,7 +11,6 @@ export default function ProductList({ products, onMakePedido, preferredModel, pr
         <ProductCard
           key={product.id}
           product={product}
-          onMakePedido={onMakePedido}
           preferredModel={preferredModel}
           preferredColor={preferredColor}
         />
