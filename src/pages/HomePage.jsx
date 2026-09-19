@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Header from '../components/Header';
 import ProductList from '../components/ProductList';
 import Filters from '../components/Filters';
+import CartDrawer from '../components/CartDrawer';
 import { getProducts, getStoreSettings } from '../services/firebase';
 
 const DEFAULT_SETTINGS = {
@@ -128,20 +129,6 @@ export default function HomePage() {
     setSelectedColors([]);
   };
 
-  const handleMakePedido = (product, variant) => {
-    const finalPrice = variant.discount
-      ? (variant.price * (1 - variant.discount / 100)).toFixed(2)
-      : variant.price;
-
-    const variantLabel = [variant.color, variant.model].filter(Boolean).join(' - ');
-    const mensaje = `¡Hola! Me interesa este producto:\n\n📦 *${product.name}*${variantLabel ? ` (${variantLabel})` : ''}\n💰 Precio: $${finalPrice}\n📝 ${product.description}\n\n¿Tienen stock disponible?`;
-
-    const mensajeEncode = encodeURIComponent(mensaje);
-    const urlWhatsApp = `https://wa.me/${settings.whatsappNumber}?text=${mensajeEncode}`;
-
-    window.open(urlWhatsApp, '_blank');
-  };
-
   return (
     <>
       <Header settings={settings} />
@@ -160,10 +147,11 @@ export default function HomePage() {
 
       <ProductList
         products={filteredProducts}
-        onMakePedido={handleMakePedido}
         preferredModel={preferredModel}
         preferredColor={preferredColor}
       />
+
+      <CartDrawer whatsappNumber={settings.whatsappNumber} />
     </>
   );
 }

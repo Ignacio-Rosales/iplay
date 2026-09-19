@@ -1,5 +1,8 @@
+import { useCart } from '../context/useCart';
+
 export default function Header({ settings }) {
   const { title, tagline, logoUrl } = settings;
+  const { totalCount, openCart } = useCart();
 
   return (
     <header>
@@ -10,7 +13,10 @@ export default function Header({ settings }) {
           <p>{tagline}</p>
         </div>
         <div className="header-actions">
-          <span>📱 Compra por WhatsApp</span>
+          <button type="button" className="btn-cart" onClick={openCart}>
+            🛒 Carrito
+            {totalCount > 0 && <span className="cart-badge">{totalCount}</span>}
+          </button>
         </div>
       </div>
     </header>
