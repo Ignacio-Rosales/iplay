@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useCart } from '../context/useCart';
+import { formatPrice } from '../utils/format';
 
 const pickVariant = (variants, preferredColor, preferredModel) => {
   let pool = variants;
@@ -53,8 +54,8 @@ export default function ProductCard({ product, preferredModel, preferredColor })
   };
 
   const finalPrice = selectedVariant.discount
-    ? (selectedVariant.price * (1 - selectedVariant.discount / 100)).toFixed(2)
-    : selectedVariant.price.toFixed(2)
+    ? formatPrice(selectedVariant.price * (1 - selectedVariant.discount / 100))
+    : formatPrice(selectedVariant.price)
 
   const stock = selectedVariant.stock ?? 0;
   const inStock = stock > 0;
@@ -146,7 +147,7 @@ export default function ProductCard({ product, preferredModel, preferredColor })
         <div className="price-section">
           {selectedVariant.discount > 0 && (
             <>
-              <span className="original-price">${selectedVariant.price}</span>
+              <span className="original-price">${formatPrice(selectedVariant.price)}</span>
               <span className="discount">-{selectedVariant.discount}%</span>
             </>
           )}

@@ -10,6 +10,7 @@ import {
   logoutAdmin
 } from '../services/firebase';
 import { uploadImage } from '../services/cloudinary';
+import { formatPrice } from '../utils/format';
 import '../styles/admin.css';
 
 const emptyVariant = { model: '', color: '', price: '', discount: '', stock: '', image: '', imageFile: null, imagePreview: '' };
@@ -681,8 +682,8 @@ export default function AdminPage() {
                       const priceLabel = prices.length === 0
                         ? '—'
                         : prices.every(p => p === prices[0])
-                          ? `$${prices[0]}`
-                          : `$${Math.min(...prices)} - $${Math.max(...prices)}`;
+                          ? `$${formatPrice(prices[0])}`
+                          : `$${formatPrice(Math.min(...prices))} - $${formatPrice(Math.max(...prices))}`;
                       return (
                         <>
                           <p>{priceLabel} · {variants.length} {variants.length === 1 ? 'variante' : 'variantes'}</p>

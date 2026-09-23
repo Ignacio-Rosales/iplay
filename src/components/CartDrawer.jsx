@@ -1,4 +1,5 @@
 import { useCart } from '../context/useCart';
+import { formatPrice } from '../utils/format';
 
 const getFinalPrice = (item) => item.discount
   ? item.price * (1 - item.discount / 100)
@@ -6,13 +7,13 @@ const getFinalPrice = (item) => item.discount
 
 const buildOrderMessage = (items, totalPrice) => {
   const lines = items.map(item => {
-    const finalPrice = getFinalPrice(item).toFixed(2);
+    const finalPrice = formatPrice(getFinalPrice(item));
     const variantLabel = [item.color, item.model].filter(Boolean).join(' - ');
     const stockNote = item.stock <= 0 ? ' (verificar disponibilidad)' : '';
     return `▪️ *${item.name}*${variantLabel ? ` (${variantLabel})` : ''} x${item.qty} — $${finalPrice} c/u${stockNote}`;
   });
 
-  return `¡Hola! Quiero hacer este pedido:\n\n${lines.join('\n')}\n\n*Total: $${totalPrice.toFixed(2)}*`;
+  return `¡Hola! Quiero hacer este pedido:\n\n${lines.join('\n')}\n\n*Total: $${formatPrice(totalPrice)}*`;
 };
 
 export default function CartDrawer({ whatsappNumber }) {
@@ -49,7 +50,7 @@ export default function CartDrawer({ whatsappNumber }) {
                     <div className="cart-item-info">
                       <span className="cart-item-name">{item.name}</span>
                       {variantLabel && <span className="cart-item-variant">{variantLabel}</span>}
-                      <span className="cart-item-price">${getFinalPrice(item).toFixed(2)} c/u</span>
+                      <span className="cart-item-price">${formatPrice(getFinalPrice(item))} c/u</span>
                       {item.stock <= 0 && <span className="cart-item-warning">Sin stock confirmado</span>}
                     </div>
                     <div className="cart-item-qty">
@@ -66,7 +67,7 @@ export default function CartDrawer({ whatsappNumber }) {
             <div className="cart-footer">
               <div className="cart-total">
                 <span>Total</span>
-                <span>${totalPrice.toFixed(2)}</span>
+                <span>${formatPrice(totalPrice)}</span>
               </div>
               <button
                 type="button"
