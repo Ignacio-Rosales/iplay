@@ -40,13 +40,17 @@ const getMockProducts = () => [
 const normalizedKey = (value) => value.trim().toLowerCase();
 
 // Cuenta cuántos productos DISTINTOS ofrecen cada valor de variante (modelo o color) —
-// una variante repetida dentro del mismo producto no debe contarlo dos veces
-const buildVariantOptionCounts = (products, field) => {
+// una variante repetida dentro del mismo producto no debe contarlo dos veces.
+// `variantFilter` permite acotar antes a las variantes que además cumplen los
+// filtros activos del OTRO campo, para que las opciones sean dinámicas: al
+// elegir un modelo, la lista de colores solo debe mostrar los que ese modelo
+// realmente tiene (y viceversa).
+const buildVariantOptionCounts = (products, field, variantFilter = () => true) => {
   const productIdsByKey = new Map();
   const displayValueByKey = new Map();
   products.forEach(product => {
     const seenForThisProduct = new Set();
-    (product.variants ?? []).forEach(v => {
+    (product.variants ?? []).filter(variantFilter).forEach(v => {
       const value = v[field];
       if (!value) return;
       const key = normalizedKey(value);
@@ -117,28 +121,66 @@ export default function HomePage() {
     loadSettings();
   }, []);
 
-  const modelOptions = useMemo(() => buildVariantOptionCounts(products, 'model'), [products]);
-  const colorOptions = useMemo(() => buildVariantOptionCounts(products, 'color'), [products]);
+  const selectedModelKeys = useMemo(() => selectedModels.map(normalizedKey), [selectedModels]);
+  const selectedColorKeys = useMemo(() => selectedColors.map(normalizedKey), [selectedColors]);
+
+  // Modelo se filtra por los colores elegidos, y color por los modelos elegidos:
+  // así cada dropdown solo ofrece combinaciones que realmente existen entre sí.
+  const modelOptions = useMemo(
+    () => buildVariantOptionCounts(products, 'model', v =>
+      selectedColorKeys.length === 0 || selectedColorKeys.includes(normalizedKey(v.color))
+    ),
+    [products, selectedColorKeys]
+  );
+  const colorOptions = useMemo(
+    () => buildVariantOptionCounts(products, 'color', v =>
+      selectedModelKeys.length === 0 || selectedModelKeys.includes(normalizedKey(v.model))
+    ),
+    [products, selectedModelKeys]
+  );
+
+  // Si un valor seleccionado ya no es una opción válida (ningún producto lo
+  // combina con el otro filtro activo), se lo ignora para filtrar/mostrar sin
+  // necesidad de "limpiarlo" del estado: en cuanto vuelva a ser compatible
+  // (p. ej. se destilda el otro filtro), reaparece seleccionado solo.
+  const modelValidKeys = useMemo(() => new Set(modelOptions.map(o => normalizedKey(o.value))), [modelOptions]);
+  const colorValidKeys = useMemo(() => new Set(colorOptions.map(o => normalizedKey(o.value))), [colorOptions]);
+
+  const effectiveModelKeys = useMemo(
+    () => selectedModelKeys.filter(k => modelValidKeys.has(k)),
+    [selectedModelKeys, modelValidKeys]
+  );
+  const effectiveColorKeys = useMemo(
+    () => selectedColorKeys.filter(k => colorValidKeys.has(k)),
+    [selectedColorKeys, colorValidKeys]
+  );
+
+  const visibleSelectedModels = useMemo(
+    () => selectedModels.filter(v => modelValidKeys.has(normalizedKey(v))),
+    [selectedModels, modelValidKeys]
+  );
+  const visibleSelectedColors = useMemo(
+    () => selectedColors.filter(v => colorValidKeys.has(normalizedKey(v))),
+    [selectedColors, colorValidKeys]
+  );
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const selectedModelKeys = selectedModels.map(normalizedKey);
-    const selectedColorKeys = selectedColors.map(normalizedKey);
     return products.filter(product => {
       const variantModels = (product.variants ?? []).map(v => v.model);
       const variantColors = (product.variants ?? []).map(v => v.color);
       const matchesSearch = !query || [product.name, product.description, ...variantModels, ...variantColors]
         .some(field => field && field.toLowerCase().includes(query));
-      const matchesModel = selectedModelKeys.length === 0
-        || variantModels.some(m => m && selectedModelKeys.includes(normalizedKey(m)));
-      const matchesColor = selectedColorKeys.length === 0
-        || variantColors.some(c => c && selectedColorKeys.includes(normalizedKey(c)));
+      const matchesModel = effectiveModelKeys.length === 0
+        || variantModels.some(m => m && effectiveModelKeys.includes(normalizedKey(m)));
+      const matchesColor = effectiveColorKeys.length === 0
+        || variantColors.some(c => c && effectiveColorKeys.includes(normalizedKey(c)));
       return matchesSearch && matchesModel && matchesColor;
     });
-  }, [products, search, selectedModels, selectedColors]);
+  }, [products, search, effectiveModelKeys, effectiveColorKeys]);
 
-  const preferredModel = selectedModels.length > 0 ? selectedModels[0] : null;
-  const preferredColor = selectedColors.length > 0 ? selectedColors[0] : null;
+  const preferredModel = visibleSelectedModels.length > 0 ? visibleSelectedModels[0] : null;
+  const preferredColor = visibleSelectedColors.length > 0 ? visibleSelectedColors[0] : null;
 
   const toggleModel = (value) => {
     setSelectedModels(prev =>
@@ -167,8 +209,8 @@ export default function HomePage() {
         onSearchChange={setSearch}
         modelOptions={modelOptions}
         colorOptions={colorOptions}
-        selectedModels={selectedModels}
-        selectedColors={selectedColors}
+        selectedModels={visibleSelectedModels}
+        selectedColors={visibleSelectedColors}
         onToggleModel={toggleModel}
         onToggleColor={toggleColor}
         onClear={clearFilters}
