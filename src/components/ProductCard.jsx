@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useCart } from '../context/useCart';
 import { formatPrice } from '../utils/format';
+import { getOptimizedImageUrl } from '../services/cloudinary';
 
 const pickVariant = (variants, preferredColor, preferredModel) => {
   let pool = variants;
@@ -70,20 +71,23 @@ export default function ProductCard({ product, preferredModel, preferredColor })
 
   const stock = selectedVariant.stock ?? 0;
   const inStock = stock > 0;
+  const rawImage = selectedVariant.image || product.image;
 
   return (
     <div className="product-card">
       <div className="product-image-wrapper">
         <img
-          src={selectedVariant.image || product.image}
+          src={getOptimizedImageUrl(rawImage, 400)}
           alt={product.name}
           className="zoomable-image"
+          loading="lazy"
+          decoding="async"
           onClick={() => setIsImageZoomed(true)}
         />
 
         {isImageZoomed && createPortal(
           <div className="image-zoom-overlay" onClick={() => setIsImageZoomed(false)}>
-            <img src={selectedVariant.image || product.image} alt={product.name} />
+            <img src={getOptimizedImageUrl(rawImage, 800)} alt={product.name} />
           </div>,
           document.body
         )}

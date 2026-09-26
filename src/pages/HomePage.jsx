@@ -62,22 +62,51 @@ const buildVariantOptionCounts = (products, field) => {
     .sort((a, b) => a.value.localeCompare(b.value));
 };
 
+const PRODUCTS_CACHE_KEY = 'iplay_products_cache';
+const SETTINGS_CACHE_KEY = 'iplay_settings_cache';
+
+const readCache = (key) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeCache = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // localStorage puede fallar (modo privado, cuota llena, etc.) — sin cache
+    // la página sigue funcionando, solo pierde el pintado instantáneo.
+  }
+};
+
 export default function HomePage() {
-  const [products, setProducts] = useState([]);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  // Se pinta primero con lo que haya en cache (si hay) para que la página
+  // cargue instantánea, y en paralelo se pide la versión fresca a Firestore
+  // (stale-while-revalidate) — así, si los productos no cambiaron desde la
+  // última visita, el usuario ni nota el pedido de red.
+  const [products, setProducts] = useState(() => readCache(PRODUCTS_CACHE_KEY) ?? []);
+  const [settings, setSettings] = useState(() => ({ ...DEFAULT_SETTINGS, ...readCache(SETTINGS_CACHE_KEY) }));
   const [search, setSearch] = useState('');
   const [selectedModels, setSelectedModels] = useState([]);
   const [selectedColors, setSelectedColors] = useState([]);
 
   async function loadProducts() {
     const productsData = await getProducts();
-    setProducts(productsData.length > 0 ? productsData : getMockProducts());
+    const finalProducts = productsData.length > 0 ? productsData : getMockProducts();
+    setProducts(finalProducts);
+    writeCache(PRODUCTS_CACHE_KEY, finalProducts);
   }
 
   async function loadSettings() {
     const storeSettings = await getStoreSettings();
     if (storeSettings) {
-      setSettings({ ...DEFAULT_SETTINGS, ...storeSettings });
+      const finalSettings = { ...DEFAULT_SETTINGS, ...storeSettings };
+      setSettings(finalSettings);
+      writeCache(SETTINGS_CACHE_KEY, finalSettings);
     }
   }
 

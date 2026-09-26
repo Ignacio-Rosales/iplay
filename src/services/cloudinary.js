@@ -1,6 +1,18 @@
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
+// Pide a Cloudinary una versión ya redimensionada/comprimida de la imagen
+// (en vez de bajar el original) insertando las transformaciones en la URL:
+// f_auto elige el mejor formato para el navegador (webp/avif), q_auto ajusta
+// la calidad automáticamente y w_<width> limita el ancho. Si la url no es de
+// Cloudinary (ej. mocks o datos viejos) se devuelve sin tocar.
+export const getOptimizedImageUrl = (url, width) => {
+  if (!url || !url.includes('res.cloudinary.com') || !url.includes('/upload/')) {
+    return url;
+  }
+  return url.replace('/upload/', `/upload/f_auto,q_auto,w_${width}/`);
+};
+
 // Sube una imagen a Cloudinary usando un upload preset "unsigned"
 export const uploadImage = async (file) => {
   try {

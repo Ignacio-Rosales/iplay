@@ -1,5 +1,6 @@
 import { useCart } from '../context/useCart';
 import { formatPrice } from '../utils/format';
+import { getOptimizedImageUrl } from '../services/cloudinary';
 
 const getFinalPrice = (item) => item.discount
   ? item.price * (1 - item.discount / 100)
@@ -46,7 +47,7 @@ export default function CartDrawer({ whatsappNumber }) {
                 const variantLabel = [item.color, item.model].filter(Boolean).join(' - ');
                 return (
                   <div key={item.key} className="cart-item">
-                    <img src={item.image} alt={item.name} />
+                    <img src={getOptimizedImageUrl(item.image, 100)} alt={item.name} loading="lazy" decoding="async" />
                     <div className="cart-item-info">
                       <span className="cart-item-name">{item.name}</span>
                       {variantLabel && <span className="cart-item-variant">{variantLabel}</span>}
