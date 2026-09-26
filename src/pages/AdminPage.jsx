@@ -175,6 +175,11 @@ export default function AdminPage() {
     reader.readAsDataURL(file);
   };
 
+  const handleRemoveImage = () => {
+    setFormData(prev => ({ ...prev, image: '', imageFile: null }));
+    setImagePreview('');
+  };
+
   const handleRemoveVariantImage = (index) => {
     setFormData(prev => ({
       ...prev,
@@ -644,6 +649,9 @@ export default function AdminPage() {
               {imagePreview && (
                 <div className="image-preview">
                   <img src={imagePreview} alt="Preview" />
+                  <button type="button" className="btn-remove-logo" onClick={handleRemoveImage}>
+                    ✕ Quitar imagen
+                  </button>
                 </div>
               )}
             </div>

@@ -47,7 +47,6 @@ export function CartProvider({ children }) {
         qty: 1
       }];
     });
-    setIsOpen(true);
   };
 
   const removeItem = (key) => {

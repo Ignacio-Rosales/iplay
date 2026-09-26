@@ -75,7 +75,10 @@ export default function CartDrawer({ whatsappNumber }) {
                 onClick={handleConfirm}
                 disabled={!whatsappNumber}
               >
-                📲 Confirmar pedido por WhatsApp
+                <svg className="icon-whatsapp" aria-hidden="true">
+                  <use href="/icons.svg#whatsapp-icon" />
+                </svg>
+                Confirmar pedido por WhatsApp
               </button>
               {!whatsappNumber && <p className="cart-warning">Número de WhatsApp no configurado.</p>}
               <button type="button" className="btn-clear-cart" onClick={clearCart}>Vaciar carrito</button>

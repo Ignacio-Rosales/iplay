@@ -1,3 +1,28 @@
+function FilterDropdown({ label, options, selected, onToggle }) {
+  if (options.length === 0) return null;
+
+  return (
+    <details className="filter-dropdown">
+      <summary className="filter-dropdown-summary">
+        {label}
+        {selected.length > 0 && <span className="filter-dropdown-count">{selected.length}</span>}
+      </summary>
+      <div className="filter-dropdown-menu">
+        {options.map(({ value, count }) => (
+          <label key={value} className="filter-checkbox">
+            <input
+              type="checkbox"
+              checked={selected.includes(value)}
+              onChange={() => onToggle(value)}
+            />
+            {value} ({count})
+          </label>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 export default function Filters({
   search,
   onSearchChange,
@@ -21,47 +46,26 @@ export default function Filters({
         onChange={(e) => onSearchChange(e.target.value)}
       />
 
-      {modelOptions.length > 0 && (
-        <div className="filter-group">
-          <h4>Modelo</h4>
-          <div className="filter-options">
-            {modelOptions.map(({ value, count }) => (
-              <label key={value} className="filter-checkbox">
-                <input
-                  type="checkbox"
-                  checked={selectedModels.includes(value)}
-                  onChange={() => onToggleModel(value)}
-                />
-                {value} ({count})
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="filter-dropdowns">
+        <FilterDropdown
+          label="Modelo"
+          options={modelOptions}
+          selected={selectedModels}
+          onToggle={onToggleModel}
+        />
+        <FilterDropdown
+          label="Color"
+          options={colorOptions}
+          selected={selectedColors}
+          onToggle={onToggleColor}
+        />
 
-      {colorOptions.length > 0 && (
-        <div className="filter-group">
-          <h4>Color</h4>
-          <div className="filter-options">
-            {colorOptions.map(({ value, count }) => (
-              <label key={value} className="filter-checkbox">
-                <input
-                  type="checkbox"
-                  checked={selectedColors.includes(value)}
-                  onChange={() => onToggleColor(value)}
-                />
-                {value} ({count})
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {hasActiveFilters && (
-        <button type="button" className="btn-clear-filters" onClick={onClear}>
-          Limpiar filtros
-        </button>
-      )}
+        {hasActiveFilters && (
+          <button type="button" className="btn-clear-filters" onClick={onClear}>
+            Limpiar filtros
+          </button>
+        )}
+      </div>
     </div>
   );
 }

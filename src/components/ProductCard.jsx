@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useCart } from '../context/useCart';
 import { formatPrice } from '../utils/format';
 
@@ -17,6 +18,7 @@ const pickVariant = (variants, preferredColor, preferredModel) => {
 
 export default function ProductCard({ product, preferredModel, preferredColor }) {
   const { addItem } = useCart();
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
   const variants = useMemo(() => product.variants ?? [], [product.variants]);
   const colors = useMemo(() => [...new Set(variants.map(v => v.color).filter(Boolean))], [variants]);
 
@@ -27,6 +29,15 @@ export default function ProductCard({ product, preferredModel, preferredColor })
     if (userPickedRef.current) return;
     setSelectedVariant(pickVariant(variants, preferredColor, preferredModel));
   }, [variants, preferredColor, preferredModel]);
+
+  useEffect(() => {
+    if (!isImageZoomed) return;
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') setIsImageZoomed(false);
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isImageZoomed]);
 
   if (!selectedVariant) {
     return null;
@@ -63,7 +74,19 @@ export default function ProductCard({ product, preferredModel, preferredColor })
   return (
     <div className="product-card">
       <div className="product-image-wrapper">
-        <img src={selectedVariant.image || product.image} alt={product.name} />
+        <img
+          src={selectedVariant.image || product.image}
+          alt={product.name}
+          className="zoomable-image"
+          onClick={() => setIsImageZoomed(true)}
+        />
+
+        {isImageZoomed && createPortal(
+          <div className="image-zoom-overlay" onClick={() => setIsImageZoomed(false)}>
+            <img src={selectedVariant.image || product.image} alt={product.name} />
+          </div>,
+          document.body
+        )}
 
         {colors.length > 1 && (
           <>
