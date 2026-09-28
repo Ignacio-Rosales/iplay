@@ -193,7 +193,10 @@ export default function ProductCard({ product, preferredModel, preferredColor })
           className="btn-pedido"
           onClick={() => addItem(product, selectedVariant)}
         >
-          🛒 {inStock ? 'Agregar al carrito' : 'Agregar (consultar disponibilidad)'}
+          <svg className="icon-cart" aria-hidden="true">
+            <use href="/icons.svg#cart-icon" />
+          </svg>
+          {inStock ? 'Agregar al carrito' : 'Agregar (consultar disponibilidad)'}
         </button>
       </div>
     </div>

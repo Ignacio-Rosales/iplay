@@ -59,7 +59,7 @@ export default function CartDrawer({ whatsappNumber }) {
                       <span>{item.qty}</span>
                       <button type="button" onClick={() => updateQty(item.key, item.qty + 1)}>+</button>
                     </div>
-                    <button type="button" className="btn-remove-item" onClick={() => removeItem(item.key)} aria-label="Quitar del carrito">🗑️</button>
+                    <button type="button" className="btn-remove-item" onClick={() => removeItem(item.key)} aria-label="Quitar del carrito">✕</button>
                   </div>
                 );
               })}

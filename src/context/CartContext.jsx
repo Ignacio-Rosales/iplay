@@ -17,6 +17,13 @@ const loadStoredCart = () => {
 export function CartProvider({ children }) {
   const [items, setItems] = useState(loadStoredCart);
   const [isOpen, setIsOpen] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 2200);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     try {
@@ -47,6 +54,7 @@ export function CartProvider({ children }) {
         qty: 1
       }];
     });
+    setToast(`${product.name} se agregó al carrito`);
   };
 
   const removeItem = (key) => {
@@ -80,5 +88,14 @@ export function CartProvider({ children }) {
     totalCount, totalPrice
   };
 
-  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+  return (
+    <CartContext.Provider value={value}>
+      {children}
+      {toast && (
+        <div className="cart-toast" role="status">
+          ✓ {toast}
+        </div>
+      )}
+    </CartContext.Provider>
+  );
 }
