@@ -1,15 +1,27 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Header from '../components/Header';
 import ProductList from '../components/ProductList';
 import Filters from '../components/Filters';
 import CartDrawer from '../components/CartDrawer';
-import { getProducts, getStoreSettings } from '../services/firebase';
+import BannerSlider from '../components/BannerSlider';
+import { PRODUCT_TAGS, matchesAnyTag, variantHasTag } from '../utils/productTags';
+import Footer from '../components/Footer';
+import { getProducts, getStoreSettings, getBanners } from '../services/firebase';
 
 const DEFAULT_SETTINGS = {
   title: 'iPlay',
   tagline: 'Accesorios Apple Premium',
   logoUrl: '',
-  whatsappNumber: ''
+  whatsappNumber: '',
+  headerBgUrl: '',
+  headerOverlay: 55,
+  brandColor: '',
+  instagram: '',
+  facebook: '',
+  tiktok: '',
+  address: '',
+  mapUrl: '',
+  hours: ''
 };
 
 const getMockProducts = () => [
@@ -68,6 +80,7 @@ const buildVariantOptionCounts = (products, field, variantFilter = () => true) =
 
 const PRODUCTS_CACHE_KEY = 'iplay_products_cache';
 const SETTINGS_CACHE_KEY = 'iplay_settings_cache';
+const BANNERS_CACHE_KEY = 'iplay_banners_cache';
 
 const readCache = (key) => {
   try {
@@ -94,9 +107,11 @@ export default function HomePage() {
   // última visita, el usuario ni nota el pedido de red.
   const [products, setProducts] = useState(() => readCache(PRODUCTS_CACHE_KEY) ?? []);
   const [settings, setSettings] = useState(() => ({ ...DEFAULT_SETTINGS, ...readCache(SETTINGS_CACHE_KEY) }));
+  const [banners, setBanners] = useState(() => readCache(BANNERS_CACHE_KEY) ?? []);
   const [search, setSearch] = useState('');
   const [selectedModels, setSelectedModels] = useState([]);
   const [selectedColors, setSelectedColors] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
 
   async function loadProducts() {
     const productsData = await getProducts();
@@ -114,11 +129,18 @@ export default function HomePage() {
     }
   }
 
+  async function loadBanners() {
+    const bannersData = (await getBanners()).filter(b => b.active !== false && b.image);
+    setBanners(bannersData);
+    writeCache(BANNERS_CACHE_KEY, bannersData);
+  }
+
   useEffect(() => {
     // Carga inicial en el montaje: no hay librería de data-fetching en el proyecto.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadProducts();
     loadSettings();
+    loadBanners();
   }, []);
 
   const selectedModelKeys = useMemo(() => selectedModels.map(normalizedKey), [selectedModels]);
@@ -128,15 +150,17 @@ export default function HomePage() {
   // así cada dropdown solo ofrece combinaciones que realmente existen entre sí.
   const modelOptions = useMemo(
     () => buildVariantOptionCounts(products, 'model', v =>
-      selectedColorKeys.length === 0 || selectedColorKeys.includes(normalizedKey(v.color))
+      (selectedColorKeys.length === 0 || selectedColorKeys.includes(normalizedKey(v.color)))
+      && matchesAnyTag(v, selectedTags)
     ),
-    [products, selectedColorKeys]
+    [products, selectedColorKeys, selectedTags]
   );
   const colorOptions = useMemo(
     () => buildVariantOptionCounts(products, 'color', v =>
-      selectedModelKeys.length === 0 || selectedModelKeys.includes(normalizedKey(v.model))
+      (selectedModelKeys.length === 0 || selectedModelKeys.includes(normalizedKey(v.model)))
+      && matchesAnyTag(v, selectedTags)
     ),
-    [products, selectedModelKeys]
+    [products, selectedModelKeys, selectedTags]
   );
 
   // Si un valor seleccionado ya no es una opción válida (ningún producto lo
@@ -164,20 +188,44 @@ export default function HomePage() {
     [selectedColors, colorValidKeys]
   );
 
+  // Modelo, color y oferta se evalúan sobre la MISMA variante: un producto con oferta solo
+  // en "iPhone 14 rojo" no debe aparecer al filtrar "iPhone 13" + ofertas, aunque tenga
+  // otra variante iPhone 13 sin oferta. Es la misma lógica cruzada de las opciones de arriba.
+  const matchesModelAndColor = useCallback(
+    (v) =>
+      (effectiveModelKeys.length === 0 || effectiveModelKeys.includes(normalizedKey(v.model ?? '')))
+      && (effectiveColorKeys.length === 0 || effectiveColorKeys.includes(normalizedKey(v.color ?? ''))),
+    [effectiveModelKeys, effectiveColorKeys]
+  );
+
+  // Por cada etiqueta, cuántos productos tienen al menos una variante con ella compatible con
+  // el modelo y color elegidos (no con las OTRAS etiquetas, igual que las opciones de modelo
+  // y color no se acotan por sí mismas). Con 0 el botón se oculta.
+  const tagOptions = useMemo(
+    () => Object.entries(PRODUCT_TAGS).map(([key, { filterLabel, icon }]) => ({
+      key,
+      label: filterLabel,
+      icon,
+      count: products.filter(p =>
+        (p.variants ?? []).some(v => variantHasTag(v, key) && matchesModelAndColor(v))
+      ).length
+    })),
+    [products, matchesModelAndColor]
+  );
+
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const noVariantFilters = effectiveModelKeys.length === 0 && effectiveColorKeys.length === 0 && selectedTags.length === 0;
     return products.filter(product => {
-      const variantModels = (product.variants ?? []).map(v => v.model);
-      const variantColors = (product.variants ?? []).map(v => v.color);
-      const matchesSearch = !query || [product.name, product.description, ...variantModels, ...variantColors]
+      const variants = product.variants ?? [];
+      const matchesSearch = !query || [product.name, product.description, ...variants.flatMap(v => [v.model, v.color])]
         .some(field => field && field.toLowerCase().includes(query));
-      const matchesModel = effectiveModelKeys.length === 0
-        || variantModels.some(m => m && effectiveModelKeys.includes(normalizedKey(m)));
-      const matchesColor = effectiveColorKeys.length === 0
-        || variantColors.some(c => c && effectiveColorKeys.includes(normalizedKey(c)));
-      return matchesSearch && matchesModel && matchesColor;
+      const matchesVariant = variants.length === 0
+        ? noVariantFilters
+        : variants.some(v => matchesModelAndColor(v) && matchesAnyTag(v, selectedTags));
+      return matchesSearch && matchesVariant;
     });
-  }, [products, search, effectiveModelKeys, effectiveColorKeys]);
+  }, [products, search, effectiveModelKeys, effectiveColorKeys, selectedTags, matchesModelAndColor]);
 
   const preferredModel = visibleSelectedModels.length > 0 ? visibleSelectedModels[0] : null;
   const preferredColor = visibleSelectedColors.length > 0 ? visibleSelectedColors[0] : null;
@@ -194,15 +242,44 @@ export default function HomePage() {
     );
   };
 
+  const toggleTag = (key) => {
+    setSelectedTags(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
   const clearFilters = () => {
     setSearch('');
     setSelectedModels([]);
     setSelectedColors([]);
+    setSelectedTags([]);
   };
 
+  // Un banner "interno" no navega: aplica los filtros del catálogo que el admin
+  // eligió (búsqueda / modelo / color) y baja hasta la grilla.
+  const handleBannerLink = (banner) => {
+    setSearch(banner.filterSearch || '');
+    setSelectedModels(banner.filterModel ? [banner.filterModel] : []);
+    setSelectedColors(banner.filterColor ? [banner.filterColor] : []);
+    setSelectedTags([]);
+    document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // Un color de marca vacío deja los estilos por defecto (header oscuro, acento verde).
+  const brandStyle = settings.brandColor
+    ? {
+        '--brand-header': settings.brandColor,
+        '--brand-header-end': `color-mix(in srgb, ${settings.brandColor} 75%, black)`,
+        '--brand-accent': settings.brandColor,
+        '--brand-accent-soft': `color-mix(in srgb, ${settings.brandColor} 15%, transparent)`
+      }
+    : undefined;
+
   return (
-    <>
+    <div style={brandStyle}>
       <Header settings={settings} />
+
+      <BannerSlider banners={banners} onInternalLink={handleBannerLink} />
 
       <Filters
         search={search}
@@ -213,6 +290,9 @@ export default function HomePage() {
         selectedColors={visibleSelectedColors}
         onToggleModel={toggleModel}
         onToggleColor={toggleColor}
+        selectedTags={selectedTags}
+        tagOptions={tagOptions}
+        onToggleTag={toggleTag}
         onClear={clearFilters}
       />
 
@@ -220,9 +300,12 @@ export default function HomePage() {
         products={filteredProducts}
         preferredModel={preferredModel}
         preferredColor={preferredColor}
+        selectedTags={selectedTags}
       />
 
+      <Footer settings={settings} />
+
       <CartDrawer whatsappNumber={settings.whatsappNumber} />
-    </>
+    </div>
   );
 }

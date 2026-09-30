@@ -41,14 +41,17 @@ export default function Filters({
   selectedColors,
   onToggleModel,
   onToggleColor,
+  selectedTags,
+  tagOptions,
+  onToggleTag,
   onClear
 }) {
-  const hasActiveFilters = search || selectedModels.length > 0 || selectedColors.length > 0;
+  const hasActiveFilters = search || selectedModels.length > 0 || selectedColors.length > 0 || selectedTags.length > 0;
   // Solo un dropdown abierto a la vez: al abrir uno, el otro se cierra solo.
   const [openFilter, setOpenFilter] = useState(null);
 
   return (
-    <div className="filters-panel">
+    <div className="filters-panel" id="catalogo">
       <input
         type="text"
         className="search-input"
@@ -74,6 +77,24 @@ export default function Filters({
           isOpen={openFilter === 'color'}
           onOpen={(open) => setOpenFilter(open ? 'color' : null)}
         />
+
+        {tagOptions.map(({ key, label, icon, count }) => {
+          const isActive = selectedTags.includes(key);
+          // Se oculta si no hay variantes con esa etiqueta para el modelo/color elegidos,
+          // salvo que ya esté activa (así siempre se puede apagar).
+          if (count === 0 && !isActive) return null;
+          return (
+            <button
+              key={key}
+              type="button"
+              className={`filter-toggle ${isActive ? 'active' : ''}`}
+              aria-pressed={isActive}
+              onClick={() => onToggleTag(key)}
+            >
+              {icon} {label} ({count})
+            </button>
+          );
+        })}
 
         {hasActiveFilters && (
           <button type="button" className="btn-clear-filters" onClick={onClear}>

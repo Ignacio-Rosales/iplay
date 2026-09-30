@@ -97,3 +97,43 @@ export const updateStoreSettings = async (settings) => {
     throw error;
   }
 };
+// Banners del slider de la home (colección `banners`). Se ordenan en cliente por
+// el campo `order` para no requerir un índice de Firestore.
+export const getBanners = async () => {
+  try {
+    const snapshot = await getDocs(collection(db, 'banners'));
+    const banners = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return banners.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  } catch (error) {
+    console.error('Error al obtener banners:', error);
+    return [];
+  }
+};
+
+export const addBanner = async (banner) => {
+  try {
+    const docRef = await addDoc(collection(db, 'banners'), banner);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error al agregar banner:', error);
+    throw error;
+  }
+};
+
+export const updateBanner = async (bannerId, banner) => {
+  try {
+    await updateDoc(doc(db, 'banners', bannerId), banner);
+  } catch (error) {
+    console.error('Error al actualizar banner:', error);
+    throw error;
+  }
+};
+
+export const deleteBanner = async (bannerId) => {
+  try {
+    await deleteDoc(doc(db, 'banners', bannerId));
+  } catch (error) {
+    console.error('Error al eliminar banner:', error);
+    throw error;
+  }
+};

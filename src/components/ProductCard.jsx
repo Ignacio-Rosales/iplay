@@ -3,11 +3,20 @@ import { createPortal } from 'react-dom';
 import { useCart } from '../context/useCart';
 import { formatPrice } from '../utils/format';
 import { getOptimizedImageUrl } from '../services/cloudinary';
+import { PRODUCT_TAGS, getRibbonKey, matchesAnyTag } from '../utils/productTags';
 
-const pickVariant = (variants, preferredColor, preferredModel) => {
+const NO_TAGS = [];
+
+// Con filtros de etiqueta activos se prefiere primero una variante que los cumpla, y sobre
+// ese conjunto se aplican el color y el modelo elegidos (mismo orden de prioridad que antes).
+const pickVariant = (variants, preferredColor, preferredModel, selectedTags) => {
   let pool = variants;
+  if (selectedTags.length > 0) {
+    const tagged = variants.filter(v => matchesAnyTag(v, selectedTags));
+    if (tagged.length) pool = tagged;
+  }
   if (preferredColor) {
-    const byColor = variants.filter(v => v.color === preferredColor);
+    const byColor = pool.filter(v => v.color === preferredColor);
     if (byColor.length) pool = byColor;
   }
   if (preferredModel) {
@@ -17,19 +26,19 @@ const pickVariant = (variants, preferredColor, preferredModel) => {
   return pool[0] ?? null;
 };
 
-export default function ProductCard({ product, preferredModel, preferredColor }) {
+export default function ProductCard({ product, preferredModel, preferredColor, selectedTags = NO_TAGS }) {
   const { addItem } = useCart();
   const [isImageZoomed, setIsImageZoomed] = useState(false);
   const variants = useMemo(() => product.variants ?? [], [product.variants]);
   const colors = useMemo(() => [...new Set(variants.map(v => v.color).filter(Boolean))], [variants]);
 
-  const [selectedVariant, setSelectedVariant] = useState(() => pickVariant(variants, preferredColor, preferredModel));
+  const [selectedVariant, setSelectedVariant] = useState(() => pickVariant(variants, preferredColor, preferredModel, selectedTags));
   const userPickedRef = useRef(false);
 
   useEffect(() => {
     if (userPickedRef.current) return;
-    setSelectedVariant(pickVariant(variants, preferredColor, preferredModel));
-  }, [variants, preferredColor, preferredModel]);
+    setSelectedVariant(pickVariant(variants, preferredColor, preferredModel, selectedTags));
+  }, [variants, preferredColor, preferredModel, selectedTags]);
 
   useEffect(() => {
     if (!isImageZoomed) return;
@@ -72,10 +81,14 @@ export default function ProductCard({ product, preferredModel, preferredColor })
   const stock = selectedVariant.stock ?? 0;
   const inStock = stock > 0;
   const rawImage = selectedVariant.image || product.image;
+  const ribbonKey = getRibbonKey(selectedVariant);
 
   return (
     <div className="product-card">
       <div className="product-image-wrapper">
+        {ribbonKey && (
+          <span className={`product-ribbon ribbon-${ribbonKey}`}>{PRODUCT_TAGS[ribbonKey].label}</span>
+        )}
         <img
           src={getOptimizedImageUrl(rawImage, 400)}
           alt={product.name}

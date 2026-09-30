@@ -1,6 +1,6 @@
 import ProductCard from './ProductCard';
 
-export default function ProductList({ products, preferredModel, preferredColor }) {
+export default function ProductList({ products, preferredModel, preferredColor, selectedTags }) {
   if (products.length === 0) {
     return <p className="no-results">No se encontraron productos con esos filtros.</p>;
   }
@@ -13,6 +13,7 @@ export default function ProductList({ products, preferredModel, preferredColor }
           product={product}
           preferredModel={preferredModel}
           preferredColor={preferredColor}
+          selectedTags={selectedTags}
         />
       ))}
     </div>

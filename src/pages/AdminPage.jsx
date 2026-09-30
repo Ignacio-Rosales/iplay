@@ -6,14 +6,19 @@ import {
   updateProduct,
   getStoreSettings,
   updateStoreSettings,
+  getBanners,
+  addBanner,
+  updateBanner,
+  deleteBanner,
   loginAdmin,
   logoutAdmin
 } from '../services/firebase';
 import { uploadImage } from '../services/cloudinary';
 import { formatPrice } from '../utils/format';
+import { PRODUCT_TAGS } from '../utils/productTags';
 import '../styles/admin.css';
 
-const emptyVariant = { model: '', color: '', price: '', discount: '', stock: '', image: '', imageFile: null, imagePreview: '' };
+const emptyVariant = { model: '', color: '', price: '', discount: '', stock: '', tag: '', image: '', imageFile: null, imagePreview: '' };
 
 const emptyProductForm = {
   name: '',
@@ -37,7 +42,59 @@ const defaultStoreSettings = {
   title: '',
   tagline: '',
   whatsappNumber: '',
-  logoUrl: ''
+  logoUrl: '',
+  headerBgUrl: '',
+  headerOverlay: 55,
+  brandColor: '',
+  instagram: '',
+  facebook: '',
+  tiktok: '',
+  address: '',
+  mapUrl: '',
+  hours: ''
+};
+
+const emptyBannerForm = {
+  image: '',
+  imageFile: null,
+  imagePreview: '',
+  linkType: 'none',
+  linkUrl: '',
+  filterSearch: '',
+  filterModel: '',
+  filterColor: ''
+};
+
+// No existe un emoji estándar de "ojo tachado" (🙈 es un mono), así que se dibuja en SVG;
+// hereda el color del texto (currentColor) y el tamaño de la fuente.
+const EyeOffIcon = () => (
+  <svg
+    className="icon-eye-off"
+    viewBox="0 0 24 24"
+    width="1em"
+    height="1em"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+    <line x1="1" y1="1" x2="23" y2="23" />
+  </svg>
+);
+
+const linkTypeLabels ={ none: 'Sin link', filter: 'Filtra la tienda', external: 'Link externo' };
+
+// Si el cliente pega "www.sitio.com" sin protocolo, el <a> lo trataría como ruta
+// relativa; se le antepone https:// para que abra el sitio externo.
+const normalizeExternalUrl = (value) => {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 };
 
 export default function AdminPage() {
@@ -54,11 +111,19 @@ export default function AdminPage() {
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [headerBgFile, setHeaderBgFile] = useState(null);
+  const [headerBgPreview, setHeaderBgPreview] = useState('');
+
+  const [banners, setBanners] = useState([]);
+  const [bannerForm, setBannerForm] = useState(emptyBannerForm);
+  const [editingBannerId, setEditingBannerId] = useState(null);
+  const [isSavingBanner, setIsSavingBanner] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
       loadProducts();
       loadStoreSettings();
+      loadBanners();
     }
   }, [isAuthenticated]);
 
@@ -72,7 +137,12 @@ export default function AdminPage() {
     if (storeSettings) {
       setSettingsForm({ ...defaultStoreSettings, ...storeSettings });
       setLogoPreview(storeSettings.logoUrl || '');
+      setHeaderBgPreview(storeSettings.headerBgUrl || '');
     }
+  }
+
+  async function loadBanners() {
+    setBanners(await getBanners());
   }
 
   const modelSuggestions = useMemo(
@@ -119,7 +189,7 @@ export default function AdminPage() {
       ...prev,
       variants: prev.variants.map((variant, i) => {
         if (i !== index) return variant;
-        const parsed = field === 'model' || field === 'color' ? value : (parseFloat(value) || (value === '' ? '' : 0));
+        const parsed = field === 'model' || field === 'color' || field === 'tag' ? value : (parseFloat(value) || (value === '' ? '' : 0));
         return { ...variant, [field]: parsed };
       })
     }));
@@ -204,6 +274,7 @@ export default function AdminPage() {
           price: v.price ?? '',
           discount: v.discount ?? '',
           stock: v.stock ?? '',
+          tag: v.tag || '',
           image: v.image || '',
           imageFile: null,
           imagePreview: v.image || ''
@@ -214,6 +285,7 @@ export default function AdminPage() {
           price: product.price ?? '',
           discount: product.discount ?? '',
           stock: product.stock ?? '',
+          tag: '',
           image: '',
           imageFile: null,
           imagePreview: ''
@@ -266,6 +338,7 @@ export default function AdminPage() {
           price: parseFloat(v.price) || 0,
           discount: v.discount === '' ? 0 : parseFloat(v.discount) || 0,
           stock: v.stock === '' ? 0 : parseFloat(v.stock) || 0,
+          tag: v.tag || '',
           image: v.image || '',
           imageFile: v.imageFile || null
         };
@@ -316,6 +389,7 @@ export default function AdminPage() {
           price: v.price,
           discount: v.discount,
           stock: v.stock,
+          tag: v.tag,
           image: variantImage
         });
       }
@@ -375,6 +449,152 @@ export default function AdminPage() {
     setSettingsForm(prev => ({ ...prev, logoUrl: '' }));
   };
 
+  const handleHeaderBgChange = (e) => {
+    const file = e.target.files[0];
+    if (!file || !validateImageFile(file)) return;
+
+    setHeaderBgFile(file);
+
+    const reader = new FileReader();
+    reader.onload = (event) => setHeaderBgPreview(event.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveHeaderBg = () => {
+    setHeaderBgFile(null);
+    setHeaderBgPreview('');
+    setSettingsForm(prev => ({ ...prev, headerBgUrl: '' }));
+  };
+
+  const handleBannerInputChange = (e) => {
+    const { name, value } = e.target;
+    setBannerForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleBannerImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file || !validateImageFile(file)) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setBannerForm(prev => ({ ...prev, imageFile: file, imagePreview: event.target.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const resetBannerForm = () => {
+    setBannerForm(emptyBannerForm);
+    setEditingBannerId(null);
+  };
+
+  const handleEditBanner = (banner) => {
+    setEditingBannerId(banner.id);
+    setBannerForm({
+      image: banner.image || '',
+      imageFile: null,
+      imagePreview: banner.image || '',
+      linkType: banner.linkType || 'none',
+      linkUrl: banner.linkUrl || '',
+      filterSearch: banner.filterSearch || '',
+      filterModel: banner.filterModel || '',
+      filterColor: banner.filterColor || ''
+    });
+  };
+
+  const handleSubmitBanner = async (e) => {
+    e.preventDefault();
+
+    if (!bannerForm.imageFile && !bannerForm.image) {
+      alert('Seleccioná una imagen para el banner');
+      return;
+    }
+
+    const { linkType } = bannerForm;
+    const linkUrl = linkType === 'external' ? normalizeExternalUrl(bannerForm.linkUrl) : '';
+    if (linkType === 'external' && !linkUrl) {
+      alert('Ingresá la dirección del link externo');
+      return;
+    }
+    const filterSearch = linkType === 'filter' ? bannerForm.filterSearch.trim() : '';
+    const filterModel = linkType === 'filter' ? bannerForm.filterModel : '';
+    const filterColor = linkType === 'filter' ? bannerForm.filterColor : '';
+    if (linkType === 'filter' && !filterSearch && !filterModel && !filterColor) {
+      alert('Elegí al menos un filtro (búsqueda, modelo o color) para este banner');
+      return;
+    }
+
+    setIsSavingBanner(true);
+    try {
+      let image = bannerForm.image;
+      if (bannerForm.imageFile) {
+        image = await uploadImage(bannerForm.imageFile);
+        if (!image) {
+          alert('Error al subir la imagen del banner');
+          setIsSavingBanner(false);
+          return;
+        }
+      }
+
+      const bannerData = { image, linkType, linkUrl, filterSearch, filterModel, filterColor };
+
+      if (editingBannerId) {
+        await updateBanner(editingBannerId, bannerData);
+      } else {
+        const nextOrder = banners.reduce((max, b) => Math.max(max, b.order ?? 0), 0) + 1;
+        await addBanner({ ...bannerData, active: true, order: nextOrder, createdAt: new Date() });
+      }
+
+      resetBannerForm();
+      await loadBanners();
+      setIsSavingBanner(false);
+    } catch (error) {
+      console.error('Error:', error);
+      setIsSavingBanner(false);
+      alert('Error al guardar el banner');
+    }
+  };
+
+  const handleToggleBanner = async (banner) => {
+    try {
+      await updateBanner(banner.id, { active: banner.active === false });
+      await loadBanners();
+    } catch {
+      alert('Error al actualizar el banner');
+    }
+  };
+
+  const handleDeleteBanner = async (bannerId) => {
+    if (!window.confirm('¿Eliminar este banner?')) return;
+    try {
+      await deleteBanner(bannerId);
+      if (editingBannerId === bannerId) resetBannerForm();
+      await loadBanners();
+    } catch {
+      alert('Error al eliminar el banner');
+    }
+  };
+
+  // Intercambia con el vecino y reescribe el `order` de TODA la lista según su nueva
+  // posición: cambiar solo los dos involucrados dejaría valores repetidos (los banners
+  // nuevos arrancan en 1 y las posiciones en 0) y el desempate sería arbitrario.
+  const handleMoveBanner = async (index, direction) => {
+    const target = index + direction;
+    if (target < 0 || target >= banners.length) return;
+    const reordered = [...banners];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    try {
+      await Promise.all(
+        reordered
+          .map((banner, position) => ({ banner, position }))
+          .filter(({ banner, position }) => banner.order !== position)
+          .map(({ banner, position }) => updateBanner(banner.id, { order: position }))
+      );
+      await loadBanners();
+    } catch {
+      alert('Error al reordenar los banners');
+    }
+  };
+
   const handleSaveSettings = async (e) => {
     e.preventDefault();
 
@@ -397,16 +617,37 @@ export default function AdminPage() {
         logoUrl = uploadedUrl;
       }
 
+      let headerBgUrl = settingsForm.headerBgUrl;
+      if (headerBgFile) {
+        const uploadedBg = await uploadImage(headerBgFile);
+        if (!uploadedBg) {
+          alert('Error al subir la imagen de fondo del header');
+          setIsSavingSettings(false);
+          return;
+        }
+        headerBgUrl = uploadedBg;
+      }
+
       const newSettings = {
         title: settingsForm.title,
         tagline: settingsForm.tagline,
         whatsappNumber: settingsForm.whatsappNumber,
-        logoUrl
+        logoUrl,
+        headerBgUrl,
+        headerOverlay: Number(settingsForm.headerOverlay) || 0,
+        brandColor: settingsForm.brandColor,
+        instagram: settingsForm.instagram.trim(),
+        facebook: settingsForm.facebook.trim(),
+        tiktok: settingsForm.tiktok.trim(),
+        address: settingsForm.address.trim(),
+        mapUrl: settingsForm.mapUrl.trim(),
+        hours: settingsForm.hours.trim()
       };
 
       await updateStoreSettings(newSettings);
       setSettingsForm(newSettings);
       setLogoFile(null);
+      setHeaderBgFile(null);
       setIsSavingSettings(false);
       alert('Configuración guardada exitosamente');
     } catch (error) {
@@ -509,10 +750,268 @@ export default function AdminPage() {
             )}
           </div>
 
+          <div className="form-group">
+            <label>Color de marca</label>
+            <div className="color-picker-row">
+              <input
+                type="color"
+                name="brandColor"
+                value={settingsForm.brandColor || '#1a1a1a'}
+                onChange={handleSettingsInputChange}
+              />
+              <span>{settingsForm.brandColor || 'Por defecto (negro y verde)'}</span>
+              {settingsForm.brandColor && (
+                <button
+                  type="button"
+                  className="btn-remove-logo"
+                  onClick={() => setSettingsForm(prev => ({ ...prev, brandColor: '' }))}
+                >
+                  Restablecer
+                </button>
+              )}
+            </div>
+            <small className="field-hint">Se usa en el fondo del header y en los detalles de los filtros.</small>
+          </div>
+
+          <div className="form-group">
+            <label>Imagen de fondo del header (opcional)</label>
+            <div className="image-upload">
+              <input
+                type="file"
+                id="header-bg-input"
+                accept="image/*"
+                onChange={handleHeaderBgChange}
+                disabled={isSavingSettings}
+              />
+              <label htmlFor="header-bg-input" className="file-label">
+                🖼️ Seleccionar imagen de fondo
+              </label>
+            </div>
+            <small className="field-hint">Recomendado: 1600×400 px o más ancha que alta. Se recorta al centro.</small>
+            {headerBgPreview && (
+              <>
+                <div className="image-preview">
+                  <img src={headerBgPreview} alt="Fondo del header" />
+                  <button type="button" className="btn-remove-logo" onClick={handleRemoveHeaderBg}>
+                    ✕ Quitar imagen de fondo
+                  </button>
+                </div>
+                <label className="overlay-label">
+                  Oscurecer imagen: {settingsForm.headerOverlay}%
+                  <input
+                    type="range"
+                    name="headerOverlay"
+                    min="0"
+                    max="90"
+                    value={settingsForm.headerOverlay}
+                    onChange={handleSettingsInputChange}
+                  />
+                </label>
+                <small className="field-hint">Si el título no se lee bien, subí este valor.</small>
+              </>
+            )}
+          </div>
+
+          <div className="form-group settings-subsection">
+            <label>Pie de página (todo opcional)</label>
+            <small className="field-hint">
+              Lo que dejes vacío no se muestra. Si no cargás nada, el pie de página no aparece.
+            </small>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Instagram</label>
+                <input
+                  type="text"
+                  name="instagram"
+                  value={settingsForm.instagram}
+                  onChange={handleSettingsInputChange}
+                  placeholder="@mitienda o link completo"
+                />
+              </div>
+              <div className="form-group">
+                <label>Facebook</label>
+                <input
+                  type="text"
+                  name="facebook"
+                  value={settingsForm.facebook}
+                  onChange={handleSettingsInputChange}
+                  placeholder="mitienda o link completo"
+                />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>TikTok</label>
+              <input
+                type="text"
+                name="tiktok"
+                value={settingsForm.tiktok}
+                onChange={handleSettingsInputChange}
+                placeholder="@mitienda o link completo"
+              />
+            </div>
+            <div className="form-group">
+              <label>Dirección</label>
+              <input
+                type="text"
+                name="address"
+                value={settingsForm.address}
+                onChange={handleSettingsInputChange}
+                placeholder="Ej: Av. Corrientes 1234, CABA"
+              />
+            </div>
+            <div className="form-group">
+              <label>Link de Google Maps</label>
+              <input
+                type="text"
+                name="mapUrl"
+                value={settingsForm.mapUrl}
+                onChange={handleSettingsInputChange}
+                placeholder="https://maps.app.goo.gl/..."
+              />
+            </div>
+            <div className="form-group">
+              <label>Horarios</label>
+              <textarea
+                name="hours"
+                value={settingsForm.hours}
+                onChange={handleSettingsInputChange}
+                placeholder={'Lunes a viernes: 10 a 19 hs\nSábados: 10 a 14 hs'}
+                rows="3"
+              ></textarea>
+            </div>
+          </div>
+
           <button type="submit" className="btn-add" disabled={isSavingSettings}>
             {isSavingSettings ? '⏳ Guardando...' : '💾 Guardar configuración'}
           </button>
         </form>
+      </div>
+
+      <div className="settings-section">
+        <h2>Banners de ofertas y anuncios ({banners.length})</h2>
+        <form onSubmit={handleSubmitBanner} className="settings-form">
+          <div className="form-group">
+            <label>{editingBannerId ? 'Imagen del banner (subí otra para reemplazarla)' : 'Imagen del banner *'}</label>
+            <div className="image-upload">
+              <input
+                type="file"
+                id="banner-input"
+                accept="image/*"
+                onChange={handleBannerImageChange}
+                disabled={isSavingBanner}
+              />
+              <label htmlFor="banner-input" className="file-label">
+                🖼️ Seleccionar imagen
+              </label>
+            </div>
+            <small className="field-hint">
+              Proporción 2:1 — ideal 1600×800 px. Dejá lo importante (texto, precio) en el centro: los bordes pueden recortarse.
+            </small>
+            {bannerForm.imagePreview && (
+              <div className="banner-admin-preview">
+                <img src={bannerForm.imagePreview} alt="Vista previa del banner" />
+              </div>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label>Al hacer clic en el banner</label>
+            <select name="linkType" value={bannerForm.linkType} onChange={handleBannerInputChange}>
+              <option value="none">No hace nada</option>
+              <option value="filter">Filtra los productos de la tienda</option>
+              <option value="external">Abre un link externo (pestaña nueva)</option>
+            </select>
+          </div>
+
+          {bannerForm.linkType === 'external' && (
+            <div className="form-group">
+              <label>Dirección del link</label>
+              <input
+                type="text"
+                name="linkUrl"
+                value={bannerForm.linkUrl}
+                onChange={handleBannerInputChange}
+                placeholder="https://www.instagram.com/mitienda"
+              />
+            </div>
+          )}
+
+          {bannerForm.linkType === 'filter' && (
+            <>
+              <div className="form-group">
+                <label>Buscar por texto (ej: nombre de un producto)</label>
+                <input
+                  type="text"
+                  name="filterSearch"
+                  value={bannerForm.filterSearch}
+                  onChange={handleBannerInputChange}
+                  placeholder="Ej: Funda MagSafe"
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Modelo</label>
+                  <select name="filterModel" value={bannerForm.filterModel} onChange={handleBannerInputChange}>
+                    <option value="">Cualquiera</option>
+                    {modelSuggestions.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Color</label>
+                  <select name="filterColor" value={bannerForm.filterColor} onChange={handleBannerInputChange}>
+                    <option value="">Cualquiera</option>
+                    {colorSuggestions.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="form-actions">
+            <button type="submit" className="btn-add" disabled={isSavingBanner}>
+              {isSavingBanner ? '⏳ Guardando...' : editingBannerId ? '✅ Guardar banner' : '+ Agregar banner'}
+            </button>
+            {editingBannerId && (
+              <button type="button" className="btn-cancel" onClick={resetBannerForm}>
+                Cancelar edición
+              </button>
+            )}
+          </div>
+        </form>
+
+        <div className="banners-admin-list">
+          {banners.length === 0 ? (
+            <p className="no-products">No hay banners aún</p>
+          ) : (
+            banners.map((banner, index) => (
+              <div
+                key={banner.id}
+                className={`banner-admin-item ${banner.active === false ? 'inactive' : ''} ${editingBannerId === banner.id ? 'editing' : ''}`}
+              >
+                <img src={banner.image} alt={`Banner ${index + 1}`} />
+                <div className="banner-admin-info">
+                  <strong>{banner.active === false ? 'Oculto' : 'Visible'}</strong>
+                  <span>
+                    {linkTypeLabels[banner.linkType || 'none']}
+                    {banner.linkType === 'external' && banner.linkUrl ? ` · ${banner.linkUrl}` : ''}
+                    {banner.linkType === 'filter'
+                      ? ` · ${[banner.filterSearch, banner.filterModel, banner.filterColor].filter(Boolean).join(' / ')}`
+                      : ''}
+                  </span>
+                </div>
+                <div className="banner-admin-actions">
+                  <button type="button" className="btn-edit" onClick={() => handleMoveBanner(index, -1)} disabled={index === 0} aria-label="Subir">↑</button>
+                  <button type="button" className="btn-edit" onClick={() => handleMoveBanner(index, 1)} disabled={index === banners.length - 1} aria-label="Bajar">↓</button>
+                  <button type="button" className="btn-edit" onClick={() => handleToggleBanner(banner)}>
+                    {banner.active === false ? '👁️ Mostrar' : <><EyeOffIcon /> Ocultar</>}
+                  </button>
+                  <button type="button" className="btn-edit" onClick={() => handleEditBanner(banner)}>✏️ Editar</button>
+                  <button type="button" className="btn-delete" onClick={() => handleDeleteBanner(banner.id)}>🗑️ Eliminar</button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       <div className="admin-content">
@@ -583,6 +1082,17 @@ export default function AdminPage() {
                     )}
                   </div>
                   <div className="variant-row-image">
+                    <select
+                      className="variant-tag-select"
+                      value={variant.tag}
+                      onChange={(e) => handleVariantChange(index, 'tag', e.target.value)}
+                      aria-label="Etiqueta de la variante"
+                    >
+                      <option value="">Sin etiqueta</option>
+                      {Object.entries(PRODUCT_TAGS).map(([key, { label }]) => (
+                        <option key={key} value={key}>{label}</option>
+                      ))}
+                    </select>
                     <input
                       type="file"
                       id={`variant-image-${index}`}

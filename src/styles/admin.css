@@ -156,6 +156,7 @@
 
 .variant-row-image {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-top: 8px;
@@ -302,7 +303,9 @@
 }
 
 #image-input,
-#logo-input {
+#logo-input,
+#header-bg-input,
+#banner-input {
   display: none;
 }
 
@@ -325,7 +328,9 @@
 }
 
 #image-input:disabled + .file-label,
-#logo-input:disabled + .file-label {
+#logo-input:disabled + .file-label,
+#header-bg-input:disabled + .file-label,
+#banner-input:disabled + .file-label {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -434,4 +439,164 @@
 
 .btn-edit:hover {
   background: #333;
+}
+/* BANNERS / MARCA */
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: #666;
+  font-size: 0.85em;
+}
+
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.color-picker-row input[type="color"] {
+  width: 56px;
+  height: 40px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.color-picker-row .btn-remove-logo {
+  margin: 0;
+}
+
+.overlay-label {
+  display: block;
+  margin-top: 12px;
+  font-size: 0.9em;
+}
+
+.overlay-label input[type="range"] {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 0;
+}
+
+.settings-form select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1em;
+  font-family: inherit;
+  background: white;
+}
+
+.banner-admin-preview {
+  margin-top: 12px;
+  max-width: 480px;
+  aspect-ratio: 2 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.banner-admin-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.banners-admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 25px;
+}
+
+.banner-admin-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px solid #eee;
+  border-radius: 10px;
+}
+
+.banner-admin-item.inactive {
+  opacity: 0.6;
+}
+
+.banner-admin-item.editing {
+  border-color: #34C759;
+}
+
+.banner-admin-item img {
+  width: 160px;
+  aspect-ratio: 2 / 1;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.banner-admin-info {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9em;
+  word-break: break-word;
+}
+
+.banner-admin-info span {
+  color: #666;
+}
+
+.icon-eye-off {
+  vertical-align: -0.125em;
+}
+
+
+.banner-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.banner-admin-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .banner-admin-item img {
+    width: 100%;
+  }
+
+  .banner-admin-actions {
+    width: 100%;
+  }
+}
+
+.settings-subsection {
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.form-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1em;
+  font-family: inherit;
+  background: white;
+}
+
+.variant-tag-select {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.9em;
+  font-family: inherit;
+  background: white;
 }
