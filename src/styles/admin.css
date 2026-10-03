@@ -600,3 +600,38 @@
   font-family: inherit;
   background: white;
 }
+
+/* Buscador y filtros de la lista de productos */
+.admin-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.admin-filters-search,
+.admin-filters-row select {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.95em;
+  font-family: inherit;
+  background: white;
+}
+
+.admin-filters-search:focus,
+.admin-filters-row select:focus {
+  outline: none;
+  border-color: #34C759;
+  box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.1);
+}
+
+.admin-filters-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.admin-filters .btn-cancel {
+  align-self: flex-start;
+}

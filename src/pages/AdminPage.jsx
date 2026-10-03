@@ -20,6 +20,8 @@ import '../styles/admin.css';
 
 const emptyVariant = { model: '', color: '', price: '', discount: '', stock: '', tag: '', image: '', imageFile: null, imagePreview: '' };
 
+const emptyProductFilters = { search: '', model: '', color: '', tag: '', stock: '', sort: 'default' };
+
 const emptyProductForm = {
   name: '',
   description: '',
@@ -106,6 +108,7 @@ export default function AdminPage() {
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState(emptyProductForm);
   const [imagePreview, setImagePreview] = useState('');
+  const [productFilters, setProductFilters] = useState(emptyProductFilters);
 
   const [settingsForm, setSettingsForm] = useState(defaultStoreSettings);
   const [logoFile, setLogoFile] = useState(null);
@@ -153,6 +156,49 @@ export default function AdminPage() {
     () => [...new Set(products.flatMap(p => (p.variants ?? []).map(v => v.color)).filter(Boolean))],
     [products]
   );
+
+  const filteredProducts = useMemo(() => {
+    const query = productFilters.search.trim().toLowerCase();
+    const { model, color, tag, stock, sort } = productFilters;
+
+    const matches = products.filter(p => {
+      const variants = p.variants ?? [];
+      if (query) {
+        const haystack = [p.name, p.description, ...variants.flatMap(v => [v.model, v.color])]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        if (!query.split(/\s+/).every(word => haystack.includes(word))) return false;
+      }
+      // Modelo, color, etiqueta y stock se evalúan sobre la MISMA variante,
+      // igual que en la tienda, para que "iPhone 13 + Rosa" no coincida con
+      // un producto que tiene iPhone 13 negro y iPhone 14 rosa.
+      return variants.some(v =>
+        (!model || v.model === model) &&
+        (!color || v.color === color) &&
+        (!tag || (tag === 'oferta' ? v.tag === 'oferta' || v.discount > 0 : v.tag === tag)) &&
+        (!stock || (stock === 'out' ? !(v.stock > 0) : v.stock > 0 && v.stock <= 3))
+      ) || (!model && !color && !tag && !stock);
+    });
+
+    const minPrice = p => Math.min(...(p.variants ?? []).map(v => v.price ?? Infinity));
+    const sorters = {
+      recent: (a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0),
+      name: (a, b) => (a.name || '').localeCompare(b.name || '', 'es'),
+      priceAsc: (a, b) => minPrice(a) - minPrice(b),
+      priceDesc: (a, b) => minPrice(b) - minPrice(a)
+    };
+    return sort === 'default' ? matches : [...matches].sort(sorters[sort]);
+  }, [products, productFilters]);
+
+  const hasActiveFilters = Object.entries(productFilters).some(
+    ([key, value]) => key !== 'sort' && value !== ''
+  );
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setProductFilters(prev => ({ ...prev, [name]: value }));
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -1182,12 +1228,61 @@ export default function AdminPage() {
         </div>
 
         <div className="products-list-section">
-          <h2>Productos Actuales ({products.length})</h2>
+          <h2>
+            Productos Actuales ({hasActiveFilters ? `${filteredProducts.length} de ${products.length}` : products.length})
+          </h2>
+
+          <div className="admin-filters">
+            <input
+              type="search"
+              name="search"
+              className="admin-filters-search"
+              value={productFilters.search}
+              onChange={handleFilterChange}
+              placeholder="🔍 Buscar por nombre, descripción, modelo o color..."
+            />
+            <div className="admin-filters-row">
+              <select name="model" value={productFilters.model} onChange={handleFilterChange} aria-label="Filtrar por modelo">
+                <option value="">Todos los modelos</option>
+                {modelSuggestions.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <select name="color" value={productFilters.color} onChange={handleFilterChange} aria-label="Filtrar por color">
+                <option value="">Todos los colores</option>
+                {colorSuggestions.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select name="tag" value={productFilters.tag} onChange={handleFilterChange} aria-label="Filtrar por etiqueta">
+                <option value="">Todas las etiquetas</option>
+                {Object.entries(PRODUCT_TAGS).map(([key, { label }]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+              <select name="stock" value={productFilters.stock} onChange={handleFilterChange} aria-label="Filtrar por stock">
+                <option value="">Todo el stock</option>
+                <option value="low">Stock bajo (1 a 3)</option>
+                <option value="out">Sin stock</option>
+              </select>
+              <select name="sort" value={productFilters.sort} onChange={handleFilterChange} aria-label="Ordenar">
+                <option value="default">Orden original</option>
+                <option value="recent">Más recientes</option>
+                <option value="name">Nombre (A-Z)</option>
+                <option value="priceAsc">Precio: menor a mayor</option>
+                <option value="priceDesc">Precio: mayor a menor</option>
+              </select>
+            </div>
+            {hasActiveFilters && (
+              <button type="button" className="btn-cancel" onClick={() => setProductFilters(emptyProductFilters)}>
+                ✕ Limpiar filtros
+              </button>
+            )}
+          </div>
+
           <div className="products-list">
             {products.length === 0 ? (
               <p className="no-products">No hay productos aún</p>
+            ) : filteredProducts.length === 0 ? (
+              <p className="no-products">Ningún producto coincide con la búsqueda</p>
             ) : (
-              products.map(product => (
+              filteredProducts.map(product => (
                 <div key={product.id} className={`product-item ${editingId === product.id ? 'editing' : ''}`}>
                   <img src={product.image || 'https://via.placeholder.com/100'} alt={product.name} />
                   <div className="product-info">
